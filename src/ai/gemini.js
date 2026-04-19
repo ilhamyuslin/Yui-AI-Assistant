@@ -49,6 +49,10 @@ async function chat(userMessage, history = []) {
       topK: 40,
       topP: 0.95,
       maxOutputTokens: 2048,
+      thinkingConfig: {
+        includeThoughts: false,
+        thinkingLevel: "MINIMAL"
+      }
     },
   });
 

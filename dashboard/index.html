@@ -106,10 +106,14 @@
         </div>
 
         <!-- Assets Overview -->
-        <section class="assets-section mb-30">
-          <div class="section-header d-flex justify-content-between align-items-center mb-15">
-            <h2 class="fs-18 fw-600">Ringkasan Aset</h2>
-            <button class="btn btn-secondary btn-sm" id="openAccountModalBtn">
+        <section class="assets-section mb-50">
+          <div class="section-header">
+            <div class="header-text">
+              <h2 class="fs-22 fw-700 mb-6">Portofolio Aset</h2>
+              <p class="fs-13 text-muted">Kelola saldo dan akun keuangan kamu di sini.</p>
+            </div>
+            <button class="btn btn-manage-assets" id="openAccountModalBtn">
+              <span class="btn-icon">⚙️</span>
               <span>Kelola Akun</span>
             </button>
           </div>
@@ -173,18 +177,21 @@
             </div>
           </div>
           <div class="budget-col">
-            <div class="config-card no-padding">
+            <div class="config-card no-padding glass-card">
               <div class="card-header px-20 pt-20">
-                <div class="flex-between">
-                  <h2>Budget Monitor</h2>
-                  <button class="btn btn-ghost btn-small" id="openBudgetModalBtn">⚙️ Atur</button>
+                <div class="header-text">
+                  <h2 class="fs-18 fw-700">Budget Monitor</h2>
+                  <p class="fs-12 text-muted">Target vs Realisasi Bulan Ini</p>
                 </div>
-                <p class="text-muted">Target vs Realisasi Bulan Ini</p>
+                <button class="btn btn-manage-assets btn-sm" id="openBudgetModalBtn">
+                  <span class="btn-icon">⚙️</span>
+                  <span>Atur</span>
+                </button>
               </div>
               <div class="card-body budget-list" id="budgetList">
                 <div class="loading-placeholder">Memuat data budget...</div>
               </div>
-              <div class="card-footer px-20 pt-20 pb-20">
+              <div class="card-footer">
                 <div class="total-budget-info">
                   <span>Total Budget Terpakai:</span>
                   <strong id="totalBudgetText">Rp 0 / Rp 0</strong>

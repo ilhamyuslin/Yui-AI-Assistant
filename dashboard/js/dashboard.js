@@ -403,15 +403,32 @@ async function loadAccounts() {
       </div>
     `;
 
-    html += accounts.map(acc => `
-      <div class="asset-card">
-        <div class="account-info">
-          <div class="account-icon">${acc.icon || '💳'}</div>
-          <span class="account-name">${acc.name}</span>
+    html += accounts.map(acc => {
+      // Smart Icon Detection
+      let icon = '💰';
+      const name = acc.name.toLowerCase();
+      
+      if (name.includes('bca') || name.includes('mandiri') || name.includes('bni') || name.includes('bank') || name.includes('permata') || name.includes('bri')) {
+        icon = '🏛️';
+      } else if (name.includes('gopay') || name.includes('ovo') || name.includes('dana') || name.includes('linkaja') || name.includes('shopeepay') || name.includes('wallet')) {
+        icon = '💳';
+      } else if (name.includes('cash') || name.includes('tunai') || name.includes('dompet') || name.includes('saku')) {
+        icon = '💵';
+      }
+
+      return `
+        <div class="asset-card">
+          <div class="account-info">
+            <div class="account-icon">${acc.icon || icon}</div>
+            <div class="account-name-wrapper">
+              <span class="account-name">${acc.name}</span>
+              <span class="account-status">Aktual • Sinkron</span>
+            </div>
+          </div>
+          <div class="asset-value">${formatIDR(acc.balance)}</div>
         </div>
-        <div class="asset-value">${formatIDR(acc.balance)}</div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     grid.innerHTML = html;
   } catch (err) {
@@ -437,16 +454,20 @@ async function renderAccountForm() {
     const { accounts } = await res.json();
 
     container.innerHTML = accounts.map(acc => `
-      <div class="budget-form-item account-row" data-id="${acc.id}">
-        <div class="budget-form-label">
+      <div class="account-edit-card account-row" data-id="${acc.id}">
+        <div class="account-type-icon">${acc.icon || '💳'}</div>
+        <div class="account-details">
           <input type="text" class="account-name-input" value="${acc.name}" placeholder="Nama Akun..." />
+          <span class="account-balance-label">Saldo Saat Ini</span>
         </div>
-        <div class="budget-input-wrapper">
-          <span class="currency-prefix">Rp</span>
-          <input type="text" 
-                 class="budget-input account-balance-input" 
-                 value="${acc.balance.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}" 
-                 placeholder="0" />
+        <div class="account-balance-area">
+          <div class="budget-input-wrapper">
+            <span class="currency-prefix">Rp</span>
+            <input type="text" 
+                   class="budget-input account-balance-input" 
+                   value="${acc.balance.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}" 
+                   placeholder="0" />
+          </div>
         </div>
         <button class="btn-delete-account" onclick="this.parentElement.remove()">×</button>
       </div>
@@ -459,14 +480,18 @@ async function renderAccountForm() {
 function addNewAccountRow() {
   const container = document.getElementById('accountFormList');
   const div = document.createElement('div');
-  div.className = 'budget-form-item account-row new-account';
+  div.className = 'account-edit-card account-row new-account';
   div.innerHTML = `
-    <div class="budget-form-label">
+    <div class="account-type-icon">💳</div>
+    <div class="account-details">
       <input type="text" class="account-name-input" placeholder="Misal: Bank BCA, Cash..." />
+      <span class="account-balance-label">Saldo Awal</span>
     </div>
-    <div class="budget-input-wrapper">
-      <span class="currency-prefix">Rp</span>
-      <input type="text" class="budget-input account-balance-input" placeholder="0" />
+    <div class="account-balance-area">
+      <div class="budget-input-wrapper">
+        <span class="currency-prefix">Rp</span>
+        <input type="text" class="budget-input account-balance-input" placeholder="0" />
+      </div>
     </div>
     <button class="btn-delete-account" onclick="this.parentElement.remove()">×</button>
   `;
