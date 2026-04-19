@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Assistant — Financial Agent</title>
+  <meta name="description" content="Web dashboard untuk mengkonfigurasi AI Assistant berbasis Telegram & Gemini" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- ═══ LOGIN OVERLAY ═══ -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-icon">✦</div>
+        <h1>AI Assistant</h1>
+        <p>Dashboard Konfigurasi</p>
+      </div>
+      <form id="loginForm" class="login-form">
+        <div class="input-group">
+          <label for="loginPassword">Password</label>
+          <div class="input-wrapper">
+            <input type="password" id="loginPassword" placeholder="Masukkan password dashboard"
+              autocomplete="current-password" />
+            <button type="button" class="toggle-visibility" data-target="loginPassword">👁</button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="loginBtn">
+          <span class="btn-text">Masuk</span>
+          <span class="btn-loader hidden">⟳</span>
+        </button>
+        <div id="loginError" class="error-msg hidden"></div>
+      </form>
+    </div>
+    <div class="login-bg-orb orb1"></div>
+    <div class="login-bg-orb orb2"></div>
+    <div class="login-bg-orb orb3"></div>
+  </div>
+
+  <!-- ═══ MAIN DASHBOARD ═══ -->
+  <div id="dashboard" class="dashboard hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-icon">✦</span>
+          <div>
+            <span class="logo-title">AI Assistant</span>
+            <span class="logo-sub">Financial Agent</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-tab="overview">
+          <span class="nav-icon">📊</span>
+          <span>Overview</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="config">
+          <span class="nav-icon">⚙️</span>
+          <span>Konfigurasi</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="whitelist">
+          <span class="nav-icon">🛡️</span>
+          <span>Whitelist</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="status">
+          <span class="nav-icon">⚡</span>
+          <span>Status Bot</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="bot-status-pill" id="sidebarStatus">
+          <span class="status-dot"></span>
+          <span class="status-label">Memuat...</span>
+        </div>
+        <button class="btn btn-ghost btn-small" id="logoutBtn">Keluar →</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- ── Tab: Overview ── -->
+      <section class="tab-content active" id="tab-overview">
+        <div class="page-header flex-between">
+          <div>
+            <h1>Financial Overview</h1>
+            <p>Pantau pengeluaran, pemasukan, dan budget kamu secara real-time.</p>
+          </div>
+          <div class="date-filter-wrapper">
+            <input type="text" id="dateFilter" placeholder="Pilih Tanggal..." class="date-picker-input" />
+          </div>
+        </div>
+
+        <!-- Assets Overview -->
+        <section class="assets-section mb-30">
+          <div class="section-header d-flex justify-content-between align-items-center mb-15">
+            <h2 class="fs-18 fw-600">Ringkasan Aset</h2>
+            <button class="btn btn-secondary btn-sm" id="openAccountModalBtn">
+              <span>Kelola Akun</span>
+            </button>
+          </div>
+          <div class="assets-grid" id="assetsGrid">
+            <!-- Rendered by JS -->
+            <div class="asset-card loading">Memuat aset...</div>
+          </div>
+        </section>
+
+        <div class="summary-grid">
+          <div class="summary-card expense">
+            <div class="summary-label">Total Pengeluaran</div>
+            <div class="summary-value" id="totalExpense">Rp 0</div>
+            <div class="summary-trend negative" id="expenseTrend">...</div>
+          </div>
+          <div class="summary-card income">
+            <div class="summary-label">Total Pemasukan</div>
+            <div class="summary-value" id="totalIncome">Rp 0</div>
+            <div class="summary-trend positive" id="incomeTrend">...</div>
+          </div>
+          <div class="summary-card balance">
+            <div class="summary-label">Saldo Saat Ini</div>
+            <div class="summary-value" id="totalBalance">Rp 0</div>
+            <div class="summary-trend" id="balanceTrend">Aktual</div>
+          </div>
+          <div class="summary-card health">
+            <div class="summary-label">Cashflow Health (Net)</div>
+            <div class="summary-value" id="netSavings">Rp 0</div>
+            <div class="summary-trend" id="savingsStatus">Surplus/Minus</div>
+          </div>
+        </div>
+
+        <!-- AI Insights Widget -->
+        <div class="insight-container">
+          <div class="insight-card">
+            <div class="insight-icon">🔮</div>
+            <div class="insight-content">
+              <h4>Smart AI Insights</h4>
+              <p id="aiInsightMessage">Menganalisis pola transaksi kamu... Mohon tunggu sebentar.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-main-grid">
+          <div class="analytics-col">
+            <div class="config-card">
+              <div class="card-header">
+                <h2>Trend Pengeluaran</h2>
+              </div>
+              <div class="card-body chart-container">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+            <div class="config-card">
+              <div class="card-header">
+                <h2>Kategori Pengeluaran</h2>
+              </div>
+              <div class="card-body chart-container">
+                <canvas id="categoryChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div class="budget-col">
+            <div class="config-card no-padding">
+              <div class="card-header px-20 pt-20">
+                <div class="flex-between">
+                  <h2>Budget Monitor</h2>
+                  <button class="btn btn-ghost btn-small" id="openBudgetModalBtn">⚙️ Atur</button>
+                </div>
+                <p class="text-muted">Target vs Realisasi Bulan Ini</p>
+              </div>
+              <div class="card-body budget-list" id="budgetList">
+                <div class="loading-placeholder">Memuat data budget...</div>
+              </div>
+              <div class="card-footer px-20 pt-20 pb-20">
+                <div class="total-budget-info">
+                  <span>Total Budget Terpakai:</span>
+                  <strong id="totalBudgetText">Rp 0 / Rp 0</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-card mt-20">
+          <div class="card-header">
+            <h2>Riwayat Transaksi Terakhir</h2>
+          </div>
+          <div class="card-body no-padding">
+            <div class="table-container">
+              <table class="data-table" id="transactionTable">
+                <thead>
+                  <tr>
+                    <th>Tanggal</th>
+                    <th>Item / Catatan</th>
+                    <th>Kategori</th>
+                    <th>Nominal</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody id="transactionBody">
+                  <tr>
+                    <td colspan="5" class="text-center">Memuat data transaksi...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Tab: Konfigurasi ── -->
+      <section class="tab-content" id="tab-config">
+        <div class="page-header">
+          <h1>Konfigurasi Bot</h1>
+          <p>Atur API keys, model AI, dan kepribadian bot kamu.</p>
+        </div>
+
+        <div class="config-grid">
+          <div class="config-card">
+            <div class="card-header">
+              <div class="card-icon telegram-icon">✈️</div>
+              <div>
+                <h2>Telegram Bot</h2>
+                <p>Token dari @BotFather</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="input-group">
+                <label for="telegramToken">Bot Token</label>
+                <div class="input-wrapper">
+                  <input type="password" id="telegramToken" placeholder="1234567890:AABBccDDee..." class="mono" />
+                  <button type="button" class="toggle-visibility" data-target="telegramToken">👁</button>
+                </div>
+                <span class="field-hint" id="telegramStatus"></span>
+              </div>
+              <button class="btn btn-outline btn-small" id="testTelegramBtn">🔌 Test Koneksi</button>
+            </div>
+          </div>
+
+          <div class="config-card">
+            <div class="card-header">
+              <div class="card-icon gemini-icon">✨</div>
+              <div>
+                <h2>Google Gemini</h2>
+                <p>API Key dari Google AI Studio</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="input-group">
+                <label for="geminiKey">API Key</label>
+                <div class="input-wrapper">
+                  <input type="password" id="geminiKey" placeholder="AIzaSy..." class="mono" />
+                  <button type="button" class="toggle-visibility" data-target="geminiKey">👁</button>
+                </div>
+                <span class="field-hint" id="geminiStatus"></span>
+              </div>
+              <div class="input-group">
+                <label for="geminiModel">Model</label>
+                <div class="select-wrapper">
+                  <select id="geminiModel">
+                    <option value="gemini-1.5-flash-lite">Gemini 1.5 Flash Lite</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    <option value="gemma-4-26b-a4b-it">Gemma 4 26B</option>
+                  </select>
+                </div>
+              </div>
+              <button class="btn btn-outline btn-small" id="testGeminiBtn">🤖 Test API Key</button>
+            </div>
+          </div>
+
+          <div class="config-card full-width">
+            <div class="card-header">
+              <div class="card-icon brain-icon">🧠</div>
+              <div>
+                <h2>System Instruction</h2>
+                <p>Kepribadian dan peran AI Assistant kamu</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="input-group">
+                <label for="systemInstruction">Instruksi Sistem</label>
+                <textarea id="systemInstruction" rows="8"></textarea>
+              </div>
+              <div class="prompt-presets">
+                <button class="preset-btn" data-preset="assistant">🤖 Asisten Umum</button>
+                <button class="preset-btn" data-preset="dev">💻 Dev Assistant</button>
+                <button class="preset-btn" data-preset="casual">😎 Teman Ngobrol</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <div id="saveStatus" class="save-status hidden"></div>
+          <button class="btn btn-primary btn-large" id="saveConfigBtn">
+            <span class="btn-text">💾 Simpan & Restart Bot</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ── Tab: Whitelist ── -->
+      <section class="tab-content" id="tab-whitelist">
+        <div class="page-header">
+          <h1>Whitelist Pengguna</h1>
+          <p>Hanya ID Telegram yang terdaftar yang bisa chat dengan bot.</p>
+        </div>
+        <div class="config-card">
+          <div class="card-header">
+            <h2>Telegram User IDs</h2>
+          </div>
+          <div class="card-body">
+            <textarea id="whitelistIds" rows="6" class="mono"></textarea>
+            <button class="btn btn-primary">💾 Simpan Whitelist</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Tab: Status ── -->
+      <section class="tab-content" id="tab-status">
+        <div class="page-header">
+          <h1>Status Bot</h1>
+        </div>
+        <div class="status-grid">
+          <div class="status-card" id="statusCardBot">
+            <div class="status-card-icon">🤖</div>
+            <div class="status-card-info">
+              <h3>Telegram Bot</h3>
+              <div class="status-badge" id="botStatusBadge">Memuat...</div>
+            </div>
+          </div>
+          <div class="status-card" id="statusCardGemini">
+            <div class="status-card-icon">✨</div>
+            <div class="status-card-info">
+              <h3>Gemini AI</h3>
+              <div class="status-badge" id="geminiStatusBadge">Memuat...</div>
+            </div>
+          </div>
+          <div class="status-card">
+            <div class="status-card-icon">🗄️</div>
+            <div class="status-card-info">
+              <h3>Database</h3>
+              <div class="status-badge status-ok">Terhubung</div>
+            </div>
+          </div>
+        </div>
+        <div class="config-card">
+          <div class="card-header">
+            <h2>Kontrol Bot</h2>
+          </div>
+          <div class="card-body">
+            <div id="errorBox" class="error-box hidden"></div>
+            <div class="action-buttons">
+              <button class="btn btn-primary">🔄 Restart Bot</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Budget Modal -->
+  <div id="budgetModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Atur Anggaran Bulanan</h2>
+        <button class="close-modal">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="budgetFormList" class="budget-form-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="cancelBudgetBtn">Batal</button>
+        <button class="btn btn-primary" id="saveBudgetBtn">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Manage Accounts -->
+  <div id="accountModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="fs-18 fw-600">Kelola Akun & Saldo</h2>
+        <button class="close-modal" id="closeAccountModalBtn">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="fs-13 text-secondary mb-20">Atur saldo awal untuk setiap akun. Perubahan ini akan memengaruhi Total Aset kamu.</p>
+        <div id="accountFormList" class="budget-form-list">
+          <!-- Rendered by JS -->
+        </div>
+        <button class="btn btn-outline btn-full btn-sm mt-15" id="addNewAccountBtn">
+          <span>+ Tambah Akun Baru</span>
+        </button>
+      </div>
+      <div class="modal-footer">
+        <div id="accountSaveStatus" class="save-status hidden"></div>
+        <button class="btn btn-primary" id="saveAccountsBtn">
+          <span class="btn-text">Simpan Perubahan</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+
+</html>

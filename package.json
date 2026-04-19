@@ -1,0 +1,24 @@
+{
+  "name": "ai-assistant",
+  "version": "1.0.0",
+  "description": "Personal AI Assistant powered by Gemini & Telegram",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "/Users/ilham/Documents/Project/Node/node-runtime/bin/node node_modules/.bin/nodemon src/index.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@supabase/supabase-js": "^2.49.4",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "node-telegram-bot-api": "^0.66.0",
+    "dotenv": "^16.4.7",
+    "cors": "^2.8.5",
+    "fs-extra": "^11.3.0",
+    "dayjs": "^1.11.13"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
