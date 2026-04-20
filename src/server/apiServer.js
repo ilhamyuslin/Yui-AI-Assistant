@@ -9,6 +9,7 @@ const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
 const path = require('path');
+const os = require('os');
 const configRoutes = require('./routes/configRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const accountRoutes = require('./routes/accountRoutes');
@@ -17,11 +18,31 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || '1234567890';
 
+// Enable trust proxy for tunnels (Ngrok, Pinggy, etc.)
+app.set('trust proxy', 1);
+
+// Helper to get local IP
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
 // Middleware
 app.use(cors({ 
   origin: (origin, callback) => {
-    // Allow localhost and 127.0.0.1 on any port locally
-    if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    // Allow localhost, local network, and common tunnel domains
+    if (!origin || 
+        origin.includes('localhost') || 
+        origin.includes('127.0.0.1') || 
+        /\.(pinggy-free\.link|ngrok-free\.app|trycloudflare\.com)$/.test(origin) || 
+        /^http:\/\/(192\.168\.|10\.|172\.)/.test(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -35,8 +56,13 @@ app.use(session({
   secret: 'ai-assistant-session-secret-' + DASHBOARD_PASSWORD,
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }, // 24 hours
+  cookie: { 
+    secure: 'auto', // Automatically uses secure cookies if the request is HTTPS (tunnel)
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000 
+  },
 }));
+
 
 // Serve dashboard static files
 const dashboardPath = path.join(__dirname, '../../dashboard');
@@ -81,10 +107,14 @@ app.get('*', (req, res) => {
 });
 
 function startServer() {
-  app.listen(PORT, () => {
-    console.log(`\n🌐 Dashboard running at: http://localhost:${PORT}`);
+  const localIp = getLocalIp();
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🌐 Dashboard Status:`);
+    console.log(`   - Local:   http://localhost:${PORT}`);
+    console.log(`   - Network: http://${localIp}:${PORT}`);
     console.log(`🔐 Password: ${DASHBOARD_PASSWORD}\n`);
   });
 }
 
 module.exports = { startServer };
+
