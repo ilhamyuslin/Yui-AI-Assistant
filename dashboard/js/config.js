@@ -6,6 +6,8 @@
 import { API, PRESETS } from './api.js';
 import { setButtonLoading, showStatus, showToast, toggleVisibility } from './utils.js';
 
+let whitelistedUsers = [];
+
 export function initConfig() {
   // Setup visibility toggles
   document.querySelectorAll('.toggle-visibility').forEach(btn => {
@@ -20,9 +22,9 @@ export function initConfig() {
   document.getElementById('testGeminiBtn')?.addEventListener('click', testGemini);
   
   // Setup Preset buttons
-  document.querySelectorAll('.preset-btn').forEach(btn => {
+  document.querySelectorAll('.preset-pill').forEach(btn => {
     btn.addEventListener('click', () => {
-      const type = btn.getAttribute('onclick')?.match(/'(.*?)'/)[1];
+      const type = btn.dataset.preset;
       if (type && PRESETS[type]) {
         document.getElementById('systemInstruction').value = PRESETS[type];
       }
@@ -32,6 +34,113 @@ export function initConfig() {
   // Setup Save buttons
   document.getElementById('saveConfigBtn')?.addEventListener('click', saveConfig);
   document.querySelector('#tab-whitelist .btn-primary')?.addEventListener('click', saveWhitelist);
+
+  // Initialize Day Selector Grid
+  renderDaySelectorGrid();
+
+  // Setup Whitelist Handlers
+  document.getElementById('addWhitelistBtn')?.addEventListener('click', addWhitelistItem);
+  document.getElementById('newWhitelistId')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addWhitelistItem();
+  });
+}
+
+function renderWhitelist() {
+  const container = document.getElementById('whitelistContainer');
+  if (!container) return;
+
+  if (whitelistedUsers.length === 0) {
+    container.innerHTML = `
+      <div class="empty-whitelist">
+        <p>Belum ada user yang terdaftar di whitelist.</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = whitelistedUsers.map((id, index) => `
+    <div class="whitelist-item">
+      <div class="whitelist-user-info">
+        <div class="whitelist-user-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <span class="whitelist-user-id">${id}</span>
+      </div>
+      <button class="btn-remove-whitelist" onclick="window.configModule.removeWhitelistItem(${index})">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+    </div>
+  `).join('');
+}
+
+export function addWhitelistItem() {
+  const input = document.getElementById('newWhitelistId');
+  const id = input.value.trim();
+  if (!id) return;
+
+  if (whitelistedUsers.includes(id)) {
+    showToast('User ID sudah ada di daftar', 'error');
+    return;
+  }
+
+  whitelistedUsers.push(id);
+  input.value = '';
+  renderWhitelist();
+}
+
+export function removeWhitelistItem(index) {
+  whitelistedUsers.splice(index, 1);
+  renderWhitelist();
+}
+
+// Attach to window so onclick works
+window.configModule = { removeWhitelistItem };
+
+function renderDaySelectorGrid() {
+  const grid = document.getElementById('daySelectorGrid');
+  const input = document.getElementById('budgetCycleDay');
+  if (!grid) return;
+
+  grid.innerHTML = '';
+  for (let i = 1; i <= 31; i++) {
+    const chip = document.createElement('div');
+    chip.className = 'day-chip';
+    chip.textContent = i;
+    chip.dataset.day = i;
+    chip.addEventListener('click', () => selectDay(i));
+    grid.appendChild(chip);
+  }
+}
+
+function selectDay(day) {
+  // Update UI
+  document.querySelectorAll('.day-chip').forEach(c => {
+    c.classList.toggle('active', parseInt(c.dataset.day) === day);
+  });
+  // Update Hidden Input
+  const input = document.getElementById('budgetCycleDay');
+  if (input) input.value = day;
+  
+  updateCyclePreview(day);
+}
+
+function updateCyclePreview(day) {
+  const hint = document.getElementById('cyclePreviewHint');
+  if (!hint) return;
+
+  const now = new Date();
+  let start, end;
+
+  // Logic matches dashboard.js handleQuickFilter
+  if (now.getDate() >= day) {
+    start = new Date(now.getFullYear(), now.getMonth(), day);
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth() - 1, day);
+  }
+  end = new Date(start.getFullYear(), start.getMonth() + 1, day - 1, 23, 59, 59);
+
+  const fmt = (d) => d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  hint.innerHTML = `Siklus Saat Ini: <strong>${fmt(start)} — ${fmt(end)}</strong>`;
 }
 
 export async function loadConfig() {
@@ -60,8 +169,16 @@ export async function loadConfig() {
     const sysInst = document.getElementById('systemInstruction');
     if (config.system_instruction && sysInst) sysInst.value = config.system_instruction;
 
-    const whitelist = document.getElementById('whitelistIds');
-    if (config.whitelisted_users && whitelist) whitelist.value = config.whitelisted_users.join('\n');
+    const cycleDay = document.getElementById('budgetCycleDay');
+    if (config.budget_cycle_day && cycleDay) {
+      cycleDay.value = config.budget_cycle_day;
+      selectDay(parseInt(config.budget_cycle_day));
+    }
+
+    if (config.whitelisted_users) {
+      whitelistedUsers = [...config.whitelisted_users];
+      renderWhitelist();
+    }
 
   } catch (err) {
     console.error('Failed to load config:', err);
@@ -75,6 +192,8 @@ async function saveConfig() {
   const payload = {
     gemini_model: document.getElementById('geminiModel').value,
     system_instruction: document.getElementById('systemInstruction').value,
+    budget_cycle_day: parseInt(document.getElementById('budgetCycleDay').value) || 1,
+    whitelisted_users: whitelistedUsers.join('\n')
   };
 
   const token = document.getElementById('telegramToken').value.trim();
@@ -108,21 +227,7 @@ async function saveConfig() {
   }
 }
 
-async function saveWhitelist() {
-  const ids = document.getElementById('whitelistIds').value;
-  try {
-    const res = await fetch(API.config, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ whitelisted_users: ids }),
-    });
-    const data = await res.json();
-    if (res.ok) showToast('✓ Whitelist tersimpan!', 'success');
-    else showToast('✗ ' + (data.error || 'Gagal'), 'error');
-  } catch (err) {
-    showToast('✗ ' + err.message, 'error');
-  }
-}
+
 
 async function testGemini() {
   const key = document.getElementById('geminiKey').value.trim();

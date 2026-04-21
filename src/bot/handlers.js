@@ -18,6 +18,24 @@ let activeConfig = {};
 // Store for transactions awaiting user confirmation
 const pendingTransactions = new Map();
 
+/**
+ * Utility to format ISO date to Indonesian readable string
+ */
+function formatDateIndo(isoString) {
+  if (!isoString) return '-';
+  try {
+    const date = new Date(isoString);
+    return new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }).format(date);
+  } catch (e) {
+    return isoString;
+  }
+}
+
 function setConfig(config) {
   activeConfig = config;
 }
@@ -91,7 +109,12 @@ function registerHandlers(bot) {
         pendingTransactions.delete(txId);
 
         // 3. Update UI
-        let successText = `✅ *Berhasil Dicatat!*\n\n💰 ${pendingData.item_name}\n💵 Rp ${Number(pendingData.amount).toLocaleString('id-ID')}\n📂 ${pendingData.category}\n💳 ${pendingData.source_of_fund}`;
+        let successText = `✅ *Berhasil Dicatat!*\n\n` +
+          `💰 ${pendingData.item_name}\n` +
+          `💵 Rp ${Number(pendingData.amount).toLocaleString('id-ID')}\n` +
+          `📂 ${pendingData.category}\n` +
+          `💳 ${pendingData.source_of_fund}\n` +
+          `📅 ${formatDateIndo(result.data.transaction_date)}`;
         
         if (pendingData.transaction_type === 'Transfer' && pendingData.destination_account) {
           successText += ` ➡️ ${pendingData.destination_account}`;
@@ -147,7 +170,12 @@ function registerHandlers(bot) {
 
     try {
       const history = await getHistory(userId);
-      const { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage, history);
+      
+      // Inject REAL-TIME date context so AI knows "Today" and "Yesterday"
+      const now = new Date();
+      const dateContext = `\n\n[CONTEXT] Today's Date: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Time: ${now.toLocaleTimeString('en-US', { hour12: false })}. Use this to calculate relative dates like 'yesterday' or 'last week'. Always provide transaction_date in ISO format if user mentions a specific time.`;
+      
+      const { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage + dateContext, history);
 
       // 1. Handle Function Calls (Mental Model: AI Requesting Action)
       if (functionCalls && functionCalls.length > 0) {
@@ -170,6 +198,7 @@ function registerHandlers(bot) {
             `🔹 *Kategori:* ${args.category}\n` +
             `🔹 *Dari Akun:* ${args.source_of_fund}\n` +
             `${args.transaction_type === 'Transfer' && args.destination_account ? `🔹 *Ke Akun:* ${args.destination_account}\n` : ''}` +
+            `🔹 *Tanggal:* ${formatDateIndo(args.transaction_date || new Date().toISOString())}\n` +
             `${args.transaction_notes ? `🔹 *Catatan:* ${args.transaction_notes}\n` : ''}\n` +
             `*Apakah data di atas sudah benar?*`;
 

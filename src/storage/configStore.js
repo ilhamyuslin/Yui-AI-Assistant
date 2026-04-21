@@ -12,6 +12,7 @@ const DEFAULT_CONFIG = {
   gemini_model: 'gemini-3.1-flash-lite-preview',
   system_instruction: 'Kamu adalah AI assistant pribadi yang cerdas, ramah, dan sangat membantu. Kamu berbicara dalam bahasa Indonesia secara natural dan santai.',
   whitelisted_users: [],
+  budget_cycle_day: 1,
 };
 
 async function getConfig() {
@@ -32,6 +33,7 @@ async function getConfig() {
     gemini_model: data.gemini_model || DEFAULT_CONFIG.gemini_model,
     system_instruction: data.system_instruction || DEFAULT_CONFIG.system_instruction,
     whitelisted_users: data.whitelisted_users || [],
+    budget_cycle_day: data.budget_cycle_day || DEFAULT_CONFIG.budget_cycle_day,
   };
 }
 

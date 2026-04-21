@@ -16,13 +16,7 @@ export function initAuth(callbacks) {
     form.addEventListener('submit', handleLogin);
   }
 
-  // Setup toggle visibility for login
-  const toggleBtn = document.querySelector('.toggle-visibility');
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      import('./utils.js').then(utils => utils.toggleVisibility('loginPassword', toggleBtn));
-    });
-  }
+  // Toggle visibility is now handled globally in config.js via data-target attribute
 }
 
 export async function checkAuth() {

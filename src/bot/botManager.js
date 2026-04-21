@@ -11,6 +11,8 @@ const { initGemini } = require('../ai/gemini');
 let botInstance = null;
 let botStatus = 'stopped'; // 'stopped' | 'starting' | 'running' | 'error'
 let botError = null;
+let botInfo = null; // { id, first_name, username }
+let activeModel = null;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -49,6 +51,20 @@ async function startBot(config) {
     registerHandlers(botInstance);
 
     botStatus = 'running';
+    activeModel = config.gemini_model;
+    
+    // Fetch Bot Info
+    botInstance.getMe().then(me => {
+      botInfo = {
+        id: me.id,
+        first_name: me.first_name,
+        username: me.username
+      };
+      console.log(`[BotManager] Bot info fetched: @${me.username}`);
+    }).catch(err => {
+      console.warn('[BotManager] Failed to fetch bot info:', err.message);
+    });
+
     console.log('[BotManager] Bot started successfully! Polling for messages...');
 
     // Handle polling errors
@@ -109,7 +125,8 @@ function getStatus() {
   return {
     status: botStatus,
     error: botError,
-    model: botInstance ? 'running' : null,
+    bot_info: botInfo,
+    active_model: activeModel
   };
 }
 

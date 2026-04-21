@@ -6,7 +6,8 @@
 const express = require('express');
 const router = express.Router();
 const { getConfig, saveConfig } = require('../../storage/configStore');
-const { restartBot, getStatus } = require('../../bot/botManager');
+const { restartBot, getStatus, startBot, stopBot } = require('../../bot/botManager');
+const { supabase } = require('../../storage/supabaseClient');
 
 // GET /api/config — Return current config (mask sensitive values)
 router.get('/', async (req, res) => {
@@ -28,10 +29,11 @@ router.get('/', async (req, res) => {
 // POST /api/config — Save config and restart bot
 router.post('/', async (req, res) => {
   try {
-    const { telegram_token, gemini_api_key, gemini_model, system_instruction, whitelisted_users } = req.body;
+    const { telegram_token, gemini_api_key, gemini_model, system_instruction, whitelisted_users, budget_cycle_day } = req.body;
 
     // Build update object (only include non-masked values)
     const updates = {};
+    if (budget_cycle_day !== undefined) updates.budget_cycle_day = parseInt(budget_cycle_day);
     if (telegram_token && !telegram_token.includes('*')) updates.telegram_token = telegram_token.trim();
     if (gemini_api_key && !gemini_api_key.includes('*')) updates.gemini_api_key = gemini_api_key.trim();
     if (gemini_model) updates.gemini_model = gemini_model;
@@ -59,9 +61,56 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/status — Bot status
-router.get('/status', (req, res) => {
-  res.json(getStatus());
+// GET /api/status — Bot status + DB Ping
+router.get('/status', async (req, res) => {
+  const status = getStatus();
+  let dbStatus = 'connected';
+  
+  try {
+    // Quick ping to check Supabase connection
+    const { error } = await supabase.from('ai_assistant_config').select('id').limit(1);
+    if (error) throw error;
+  } catch (err) {
+    dbStatus = 'error';
+    console.warn('[Status] DB Health Check failed:', err.message);
+  }
+
+  res.json({ ...status, db_status: dbStatus });
+});
+
+// POST /api/status/restart — Manual restart
+router.post('/status/restart', async (req, res) => {
+  try {
+    const config = await getConfig();
+    restartBot(config).catch(err => console.error('[Route] Restart error:', err.message));
+    res.json({ success: true, message: 'Bot sedang me-restart...' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/status/stop — Stop bot
+router.post('/status/stop', async (req, res) => {
+  try {
+    await stopBot();
+    res.json({ success: true, message: 'Bot berhasil dihentikan.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/status/start — Start bot
+router.post('/status/start', async (req, res) => {
+  try {
+    const config = await getConfig();
+    if (!config.telegram_token || !config.gemini_api_key) {
+      return res.status(400).json({ error: 'Konfigurasi tidak lengkap.' });
+    }
+    await startBot(config);
+    res.json({ success: true, message: 'Bot sedang dimulai...' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // POST /api/config/test-gemini — Test Gemini API key
@@ -102,5 +151,15 @@ function maskSecret(str) {
   if (!str || str.length < 10) return '***';
   return str.slice(0, 6) + '***' + str.slice(-4);
 }
+
+// GET /api/config/cycle — Return payday for cycle calculation
+router.get('/cycle', async (req, res) => {
+  try {
+    const config = await getConfig();
+    res.json({ payDay: config.budget_cycle_day || 25 });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

@@ -1,5 +1,5 @@
 /**
- * app.js
+ * app.js — v4 Moonlight Emerald
  * Entry point for AI Assistant Dashboard
  */
 
@@ -9,7 +9,7 @@ import { initConfig, loadConfig } from './config.js';
 import { initStatus } from './status.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // 1. Setup UI components first
+  initSidebar();
   initNavigation();
   initAuth({ onLoginSuccess: showDashboard });
   initDashboard();
@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('logoutBtn')?.addEventListener('click', logout);
 
-  // 2. Check login status
   const authenticated = await checkAuth();
   if (authenticated) {
     showDashboard();
@@ -27,28 +26,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+/* ── Collapsible Sidebar ── */
+function initSidebar() {
+  const toggle  = document.getElementById('sidebarToggle');
+  const sidebar = document.getElementById('sidebar');
+  if (!toggle || !sidebar) return;
+
+  // Restore state
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    sidebar.classList.add('collapsed');
+  }
+
+  toggle.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+  });
+}
+
+/* ── Tab Navigation ── */
 function initNavigation() {
-  document.querySelectorAll('.nav-item').forEach(item => {
-    item.addEventListener('click', (e) => {
+  document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
+    item.addEventListener('click', e => {
       e.preventDefault();
-      const tab = item.dataset.tab;
-      handleTabSwitch(tab, item);
+      switchTab(item.dataset.tab);
     });
   });
 }
 
-function handleTabSwitch(tab, clickedItem) {
+function switchTab(tabId) {
+  // Update nav items
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.getElementById(`nav-${tabId}`);
+  if (navEl) navEl.classList.add('active');
+
+  // Update tab content
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  const tabEl = document.getElementById(`tab-${tabId}`);
+  if (tabEl) tabEl.classList.add('active');
 
-  clickedItem.classList.add('active');
-  const target = document.getElementById(`tab-${tab}`);
-  if (target) target.classList.add('active');
-
-  // Refresh data if switching to overview
-  if (tab === 'overview') refreshDashboardData();
+  // Refresh data if needed
+  if (tabId === 'overview') refreshDashboardData();
 }
 
+/* ── Show / Hide Screens ── */
 function showLogin() {
   document.getElementById('loginOverlay')?.classList.remove('hidden');
   document.getElementById('dashboard')?.classList.add('hidden');
@@ -57,8 +77,6 @@ function showLogin() {
 function showDashboard() {
   document.getElementById('loginOverlay')?.classList.add('hidden');
   document.getElementById('dashboard')?.classList.remove('hidden');
-  
-  // Trigger initial data load
   loadConfig();
   refreshDashboardData();
 }

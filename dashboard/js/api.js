@@ -15,6 +15,7 @@ export const API = {
   stats:        '/api/transactions/stats',
   budgets:      '/api/transactions/budgets',
   accounts:     '/api/accounts',
+  categories:   '/api/transactions/categories',
 };
 
 export const PRESETS = {
