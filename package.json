@@ -2,7 +2,6 @@
   "name": "ai-assistant",
   "version": "1.0.0",
   "description": "Personal AI Assistant powered by Gemini & Telegram",
-  "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "/Users/ilham/Documents/Project/Node/node-runtime/bin/node node_modules/.bin/nodemon src/index.js"
