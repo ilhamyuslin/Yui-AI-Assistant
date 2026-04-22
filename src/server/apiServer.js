@@ -55,29 +55,31 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(session({
-  secret: 'ai-assistant-session-secret-' + DASHBOARD_PASSWORD,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: 'auto', // Automatically uses secure cookies if the request is HTTPS (tunnel)
-    sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 
-  },
-}));
-
+// session middleware removed for serverless compatibility
 
 // Serve dashboard static files
 const dashboardPath = path.join(__dirname, '../../dashboard');
 app.use(express.static(dashboardPath));
 
+// Helper to parse cookies
+function getAuthCookie(req) {
+  const cookieHeader = req.headers.cookie;
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/auth_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // ─── Auth Routes ──────────────────────────────────────────────
 app.post('/auth/login', (req, res) => {
   const { password } = req.body;
-  console.log(`[Auth] Login attempt with password: ${password === DASHBOARD_PASSWORD ? 'CORRECT' : 'WRONG'}`);
-  
   if (password === DASHBOARD_PASSWORD) {
-    req.session.authenticated = true;
+    // Set a cookie valid for 1 day
+    res.cookie('auth_token', DASHBOARD_PASSWORD, {
+      maxAge: 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      secure: process.env.VERCEL === '1',
+      sameSite: 'lax'
+    });
     res.json({ success: true });
   } else {
     res.status(401).json({ error: 'Password salah.' });
@@ -85,17 +87,17 @@ app.post('/auth/login', (req, res) => {
 });
 
 app.post('/auth/logout', (req, res) => {
-  req.session.destroy();
+  res.clearCookie('auth_token');
   res.json({ success: true });
 });
 
 app.get('/auth/check', (req, res) => {
-  res.json({ authenticated: req.session.authenticated === true });
+  res.json({ authenticated: getAuthCookie(req) === DASHBOARD_PASSWORD });
 });
 
 // ─── Auth Middleware for API ──────────────────────────────────
 function requireAuth(req, res, next) {
-  if (req.session.authenticated) return next();
+  if (getAuthCookie(req) === DASHBOARD_PASSWORD) return next();
   res.status(401).json({ error: 'Unauthorized. Silakan login terlebih dahulu.' });
 }
 
