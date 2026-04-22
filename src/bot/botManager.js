@@ -48,7 +48,7 @@ async function startBot(config) {
 
     if (isVercel) {
       botInstance = new TelegramBot(config.telegram_token);
-      
+
       const webhookUrl = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/webhook/telegram` : null;
       if (webhookUrl) {
         botInstance.setWebHook(webhookUrl).then(() => {
@@ -69,7 +69,7 @@ async function startBot(config) {
 
     botStatus = 'running';
     activeModel = config.gemini_model;
-    
+
     // Fetch Bot Info
     botInstance.getMe().then(me => {
       botInfo = {
@@ -91,9 +91,9 @@ async function startBot(config) {
       botInstance.on('polling_error', (err) => {
         // Ignore 409 during transitions briefly
         if (err.code === 'ETELEGRAM' && err.message.includes('409 Conflict')) {
-          return; 
+          return;
         }
-        
+
         console.error('[BotManager] Polling error:', err.message);
         if (err.code === 'ETELEGRAM' && err.message.includes('Unauthorized')) {
           botStatus = 'error';
@@ -118,7 +118,7 @@ async function stopBot() {
 
   try {
     const isVercel = process.env.VERCEL === '1';
-    
+
     if (isVercel) {
       console.log('[BotManager] Stopping bot webhook...');
       await botInstance.deleteWebHook();
@@ -141,11 +141,11 @@ async function stopBot() {
 async function restartBot(config) {
   console.log('[BotManager] Restarting bot... (Coordinating stop)');
   await stopBot();
-  
+
   // Crucial: Wait for Telegram to acknowledge polling stop
   console.log('[BotManager] Waiting for polling to fully clear...');
-  await sleep(2500); 
-  
+  await sleep(2500);
+
   await startBot(config);
 }
 

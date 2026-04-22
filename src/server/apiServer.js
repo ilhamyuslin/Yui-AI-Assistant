@@ -42,6 +42,8 @@ app.use(cors({
     if (!origin || 
         origin.includes('localhost') || 
         origin.includes('127.0.0.1') || 
+        origin.includes('vercel.app') ||
+        origin.includes('yui-ai-assistant.vercel.app') ||
         /\.(pinggy-free\.link|ngrok-free\.app|trycloudflare\.com)$/.test(origin) || 
         /^http:\/\/(192\.168\.|10\.|172\.)/.test(origin)) {
       callback(null, true);
