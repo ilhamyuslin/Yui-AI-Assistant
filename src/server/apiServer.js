@@ -13,6 +13,7 @@ const os = require('os');
 const configRoutes = require('./routes/configRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const accountRoutes = require('./routes/accountRoutes');
+const botManager = require('../bot/botManager');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -101,6 +102,12 @@ app.use('/api/config', requireAuth, configRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
 app.use('/api/accounts', requireAuth, accountRoutes);
 
+// ─── Webhook Route (No Auth) ──────────────────────────────────
+app.post('/api/webhook/telegram', (req, res) => {
+  botManager.processWebhook(req.body);
+  res.sendStatus(200);
+});
+
 // ─── Catch-all: serve dashboard ───────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(dashboardPath, 'index.html'));
@@ -108,13 +115,15 @@ app.get('*', (req, res) => {
 
 function startServer() {
   const localIp = getLocalIp();
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🌐 Dashboard Status:`);
-    console.log(`   - Local:   http://localhost:${PORT}`);
-    console.log(`   - Network: http://${localIp}:${PORT}`);
-    console.log(`🔐 Password: ${DASHBOARD_PASSWORD}\n`);
-  });
+  // Don't listen if we are in Vercel. Vercel serverless handles listening automatically.
+  if (process.env.VERCEL !== '1') {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`\n🌐 Dashboard Status:`);
+      console.log(`   - Local:   http://localhost:${PORT}`);
+      console.log(`   - Network: http://${localIp}:${PORT}`);
+      console.log(`🔐 Password: ${DASHBOARD_PASSWORD}\n`);
+    });
+  }
 }
 
-module.exports = { startServer };
-
+module.exports = { startServer, app };

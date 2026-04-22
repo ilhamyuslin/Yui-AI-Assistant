@@ -43,8 +43,25 @@ async function startBot(config) {
     // Initialize Gemini
     initGemini(config);
 
-    // Create bot in polling mode
-    botInstance = new TelegramBot(config.telegram_token, { polling: true });
+    // Create bot instance based on environment (Vercel = Webhook, Local = Polling)
+    const isVercel = process.env.VERCEL === '1';
+
+    if (isVercel) {
+      botInstance = new TelegramBot(config.telegram_token);
+      
+      const webhookUrl = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/webhook/telegram` : null;
+      if (webhookUrl) {
+        botInstance.setWebHook(webhookUrl).then(() => {
+          console.log(`[BotManager] Webhook configured: ${webhookUrl}`);
+        }).catch(err => {
+          console.error('[BotManager] Failed to set webhook:', err.message);
+        });
+      } else {
+        console.warn('[BotManager] ⚠️ PUBLIC_URL is unset in Vercel! Telegram Webhook cannot be registered.');
+      }
+    } else {
+      botInstance = new TelegramBot(config.telegram_token, { polling: true });
+    }
 
     // Pass config to handlers
     setConfig(config);
@@ -65,22 +82,26 @@ async function startBot(config) {
       console.warn('[BotManager] Failed to fetch bot info:', err.message);
     });
 
-    console.log('[BotManager] Bot started successfully! Polling for messages...');
+    if (isVercel) {
+      console.log('[BotManager] Bot started in WEBHOOK mode! Awaiting requests...');
+    } else {
+      console.log('[BotManager] Bot started successfully! Polling for messages...');
 
-    // Handle polling errors
-    botInstance.on('polling_error', (err) => {
-      // Ignore 409 during transitions briefly
-      if (err.code === 'ETELEGRAM' && err.message.includes('409 Conflict')) {
-        return; 
-      }
-      
-      console.error('[BotManager] Polling error:', err.message);
-      if (err.code === 'ETELEGRAM' && err.message.includes('Unauthorized')) {
-        botStatus = 'error';
-        botError = 'Token Telegram tidak valid (Unauthorized).';
-        stopBot();
-      }
-    });
+      // Handle polling errors (only for Polling mode)
+      botInstance.on('polling_error', (err) => {
+        // Ignore 409 during transitions briefly
+        if (err.code === 'ETELEGRAM' && err.message.includes('409 Conflict')) {
+          return; 
+        }
+        
+        console.error('[BotManager] Polling error:', err.message);
+        if (err.code === 'ETELEGRAM' && err.message.includes('Unauthorized')) {
+          botStatus = 'error';
+          botError = 'Token Telegram tidak valid (Unauthorized).';
+          stopBot();
+        }
+      });
+    }
 
   } catch (err) {
     botStatus = 'error';
@@ -96,8 +117,15 @@ async function stopBot() {
   if (!botInstance) return;
 
   try {
-    console.log('[BotManager] Stopping bot polling...');
-    await botInstance.stopPolling({ cancel: true });
+    const isVercel = process.env.VERCEL === '1';
+    
+    if (isVercel) {
+      console.log('[BotManager] Stopping bot webhook...');
+      await botInstance.deleteWebHook();
+    } else {
+      console.log('[BotManager] Stopping bot polling...');
+      await botInstance.stopPolling({ cancel: true });
+    }
   } catch (err) {
     console.error('[BotManager] Error stopping bot:', err.message);
   }
@@ -126,8 +154,20 @@ function getStatus() {
     status: botStatus,
     error: botError,
     bot_info: botInfo,
-    active_model: activeModel
+    active_model: activeModel,
+    mode: process.env.VERCEL === '1' ? 'webhook' : 'polling'
   };
 }
 
-module.exports = { startBot, stopBot, restartBot, getStatus };
+/**
+ * Forward webhook payloads to the bot instance
+ */
+function processWebhook(body) {
+  if (botInstance) {
+    botInstance.processUpdate(body);
+  } else {
+    console.warn('[BotManager] Received webhook but botInstance is null');
+  }
+}
+
+module.exports = { startBot, stopBot, restartBot, getStatus, processWebhook };
