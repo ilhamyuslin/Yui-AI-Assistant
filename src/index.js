@@ -32,4 +32,9 @@ async function main() {
   }
 }
 
-main();
+// Vercel "Node" preset fix: If Vercel tries to run this file directly, export the serverless handler
+if (process.env.VERCEL === '1') {
+  module.exports = require('../api/index.js');
+} else {
+  main();
+}
