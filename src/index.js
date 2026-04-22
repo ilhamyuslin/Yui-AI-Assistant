@@ -33,3 +33,8 @@ async function main() {
 }
 
 main();
+
+// EXPORT FOR VERCEL (Required for "Node.js" Preset)
+// Vercel statically analyzes this file to find top-level exports.
+const { app } = require('./server/apiServer');
+module.exports = app;
