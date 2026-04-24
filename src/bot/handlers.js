@@ -12,6 +12,7 @@ const { chat, isReady } = require('../ai/gemini');
 const { getHistory, appendHistory, clearHistory } = require('../storage/historyStore');
 const { logMessage } = require('../storage/logger');
 const { saveTransaction } = require('../storage/expenseStore');
+const { getActiveCategories } = require('../services/transactionService');
 
 // Active config reference
 let activeConfig = {};
@@ -29,7 +30,8 @@ function formatDateIndo(isoString) {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta'
     }).format(date);
   } catch (e) {
     return isoString;
@@ -57,11 +59,11 @@ function registerHandlers(bot) {
   bot.onText(/\/start/, async (msg) => {
     const userId = msg.from.id;
     if (!isWhitelisted(userId)) return bot.sendMessage(msg.chat.id, '⛔ Maaf, bot ini bersifat private.');
-    
+
     const welcomeText = `👋 Halo! Aku adalah AI Assistant pribadimu!\n\n` +
-      `🤖 *Powered by Google Gemini*\n` +
-      `💰 *Skill:* Aku bisa bantu catat pengeluaran/pemasukanmu!\n\n` +
-      `*Perintah:*\n` +
+      `🤖 Powered by Google Gemini\n` +
+      `💰 Skill: Aku bisa bantu catat pengeluaran/pemasukanmu!\n\n` +
+      `Perintah:\n` +
       `/clear - Hapus riwayat chat\n` +
       `/help  - Bantuan\n\n` +
       `Silakan mulai ngobrol atau catat sesuatu! 😊`;
@@ -72,10 +74,10 @@ function registerHandlers(bot) {
   bot.onText(/\/help/, async (msg) => {
     const userId = msg.from.id;
     if (!isWhitelisted(userId)) return;
-    const helpText = `📖 *Panduan Bot*\n\n` +
-      `1. *Chat Bebas:* Tanya apa saja, aku akan menjawab.\n` +
-      `2. *Catat Keuangan:* Kirim pesan seperti "Beli kopi 25rb bayar pake Dana". Aku akan mengekstrak datanya dan minta konfirmasi simpan.\n\n` +
-      `*Perintah:*\n` +
+    const helpText = `📖 Panduan Bot\n\n` +
+      `1. Chat Bebas: Tanya apa saja, aku akan menjawab.\n` +
+      `2. Catat Keuangan: Kirim pesan seperti "Beli kopi 25rb bayar pake Dana". Aku akan mengekstrak datanya dan minta konfirmasi simpan.\n\n` +
+      `Perintah:\n` +
       `/clear - Reset konteks percakapan\n` +
       `/help  - Tampilkan pesan ini`;
     await bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
@@ -103,19 +105,19 @@ function registerHandlers(bot) {
 
       // 1. Save to DB
       const result = await saveTransaction(pendingData);
-      
+
       if (result.success) {
         // 2. Clear state immediately to prevent double processing
         pendingTransactions.delete(txId);
 
         // 3. Update UI
-        let successText = `✅ *Berhasil Dicatat!*\n\n` +
+        let successText = `✅ Berhasil Dicatat!\n\n` +
           `💰 ${pendingData.item_name}\n` +
           `💵 Rp ${Number(pendingData.amount).toLocaleString('id-ID')}\n` +
           `📂 ${pendingData.category}\n` +
           `💳 ${pendingData.source_of_fund}\n` +
           `📅 ${formatDateIndo(result.data.transaction_date)}`;
-        
+
         if (pendingData.transaction_type === 'Transfer' && pendingData.destination_account) {
           successText += ` ➡️ ${pendingData.destination_account}`;
         }
@@ -140,7 +142,7 @@ function registerHandlers(bot) {
       } else {
         await bot.sendMessage(msg.chat.id, `❌ Gagal menyimpan: ${result.error}`);
       }
-    } 
+    }
     else if (action === 'TX_CANCEL') {
       pendingTransactions.delete(txId);
       await bot.editMessageText('❌ Pencatatan dibatalkan.', {
@@ -170,12 +172,21 @@ function registerHandlers(bot) {
 
     try {
       const history = await getHistory(userId);
-      
+      const categories = await getActiveCategories();
+
       // Inject REAL-TIME date context so AI knows "Today" and "Yesterday"
+      // Inject REAL-TIME date context (WIB Timezone)
       const now = new Date();
-      const dateContext = `\n\n[CONTEXT] Today's Date: ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}. Time: ${now.toLocaleTimeString('en-US', { hour12: false })}. Use this to calculate relative dates like 'yesterday' or 'last week'. Always provide transaction_date in ISO format if user mentions a specific time.`;
-      
-      const { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage + dateContext, history);
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
+      const dateStr = now.toLocaleDateString('en-US', options);
+      const timeStr = now.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Jakarta' });
+
+      const dateContext = `\n\n[CONTEXT] Today's Date: ${dateStr}. Local Time (WIB): ${timeStr}. Use this for relative dates. Always provide transaction_date in ISO format (e.g., 2026-04-23T19:35:00+07:00). IMPORTANT: Telegram only supports single asterisk for bold (*text*). Do NOT use double asterisks (**text**).`;
+
+      let { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage + dateContext, history, categories);
+
+      // 0. Global Cleaner: Remove all asterisks to prevent messy Telegram formatting
+      aiReply = aiReply.replace(/\*/g, '');
 
       // 1. Handle Function Calls (Mental Model: AI Requesting Action)
       if (functionCalls && functionCalls.length > 0) {
@@ -191,16 +202,16 @@ function registerHandlers(bot) {
           pendingTransactions.set(uniqueTxId, args);
 
           // Build summary for confirmation
-          const summary = `📝 *Konfirmasi Pencatatan (${i + 1}/${functionCalls.length})*\n\n` +
-            `🔹 *Item:* ${args.item_name}\n` +
-            `🔹 *Nominal:* Rp ${Number(args.amount).toLocaleString('id-ID')}\n` +
-            `🔹 *Tipe:* ${args.transaction_type}\n` +
-            `🔹 *Kategori:* ${args.category}\n` +
-            `🔹 *Dari Akun:* ${args.source_of_fund}\n` +
-            `${args.transaction_type === 'Transfer' && args.destination_account ? `🔹 *Ke Akun:* ${args.destination_account}\n` : ''}` +
-            `🔹 *Tanggal:* ${formatDateIndo(args.transaction_date || new Date().toISOString())}\n` +
-            `${args.transaction_notes ? `🔹 *Catatan:* ${args.transaction_notes}\n` : ''}\n` +
-            `*Apakah data di atas sudah benar?*`;
+          const summary = `📝 Konfirmasi Pencatatan (${i + 1}/${functionCalls.length})\n\n` +
+            `🔹 Item: ${args.item_name}\n` +
+            `🔹 Nominal: Rp ${Number(args.amount).toLocaleString('id-ID')}\n` +
+            `🔹 Tipe: ${args.transaction_type}\n` +
+            `🔹 Kategori: ${args.category}\n` +
+            `🔹 Dari Akun: ${args.source_of_fund}\n` +
+            `${args.transaction_type === 'Transfer' && args.destination_account ? `🔹 Ke Akun: ${args.destination_account}\n` : ''}` +
+            `🔹 Tanggal: ${formatDateIndo(args.transaction_date || new Date().toISOString())}\n` +
+            `${args.transaction_notes ? `🔹 Catatan: ${args.transaction_notes}\n` : ''}\n` +
+            `Apakah data di atas sudah benar?`;
 
           const opts = {
             parse_mode: 'Markdown',

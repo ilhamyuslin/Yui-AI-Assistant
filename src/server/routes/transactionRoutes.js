@@ -21,8 +21,8 @@ router.get('/', async (req, res) => {
       .select('*')
       .order('transaction_date', { ascending: false });
 
-    if (startDate) query = query.gte('transaction_date', startDate);
-    if (endDate) query = query.lte('transaction_date', endDate);
+    if (startDate) query = query.gte('transaction_date', dayjs(startDate).startOf('day').toISOString());
+    if (endDate) query = query.lte('transaction_date', dayjs(endDate).endOf('day').toISOString());
     if (transaction_type) query = query.eq('transaction_type', transaction_type);
     if (category) {
       const categories = Array.isArray(category) ? category : [category];
@@ -43,103 +43,121 @@ router.get('/', async (req, res) => {
  * Aggregate stats for charts.
  */
 router.get('/stats', async (req, res) => {
-    const { period, startDate, endDate, category } = req.query;
-    
-    try {
-      const start = startDate || dayjs(period).startOf('month').toISOString();
-      const end = endDate || dayjs(period).endOf('month').toISOString();
-      const startDateObj = dayjs(start);
-      const endDateObj = dayjs(end);
-      const diffDays = endDateObj.diff(startDateObj, 'day');
-      const isSingleDay = diffDays === 0;
+  const { period, startDate, endDate, category } = req.query;
 
-      // Adjust query range for single day comparison
-      let queryStart = start;
-      if (isSingleDay) {
-        queryStart = startDateObj.subtract(1, 'day').toISOString();
-      }
-  
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .gte('transaction_date', queryStart)
-        .lte('transaction_date', end);
+  try {
+    let query = supabase.from('transactions').select('*');
 
-      if (category) {
-        const categories = Array.isArray(category) ? category : [category];
-        query = query.in('category', categories);
-      }
+    // Handle string "null" from Axios or actual null/undefined
+    const hasStartDate = startDate && startDate !== 'null';
+    const hasEndDate = endDate && endDate !== 'null';
 
-      const { data: transactions, error } = await query;
-      if (error) throw error;
+    let strictStartObj = null;
+    let strictEndObj = null;
 
-      // Calculate totals and grouping
-      const stats = {
-        total_income: 0,
-        total_expense: 0,
-        net_savings: 0,
-        categories: {},
-        sources: {},
-        daily_trend: {}
-      };
+    if (hasStartDate || period) {
+      strictStartObj = dayjs(hasStartDate ? startDate : period).startOf('day');
+    }
+    if (hasEndDate || period) {
+      strictEndObj = dayjs(hasEndDate ? endDate : period).endOf('day');
+    }
 
-      // Initialize daily trend according to the range
-    if (isSingleDay) {
-      // 3-day window: Yesterday, Today, Tomorrow
-      const yesterday = startDateObj.subtract(1, 'day').format('YYYY-MM-DD');
-      const today = startDateObj.format('YYYY-MM-DD');
-      const tomorrow = startDateObj.add(1, 'day').format('YYYY-MM-DD');
+    if (strictStartObj && strictEndObj) {
+      const isSingleDayQuery = strictStartObj.isSame(strictEndObj, 'day');
       
+      let queryStartISO = strictStartObj.toISOString();
+      // RESTORE: Adjust query range for single day comparison to fetch yesterday's data for the trend chart
+      if (isSingleDayQuery) {
+        queryStartISO = strictStartObj.subtract(1, 'day').toISOString();
+      }
+      
+      query = query.gte('transaction_date', queryStartISO);
+      query = query.lte('transaction_date', strictEndObj.toISOString());
+    }
+
+    if (category) {
+      const categories = Array.isArray(category) ? category : [category];
+      query = query.in('category', categories);
+    }
+
+    // Order by descending date so we can find the oldest and newest transaction easily
+    query = query.order('transaction_date', { ascending: false });
+
+    const { data: transactions, error } = await query;
+    if (error) throw error;
+
+    // --- DYNAMIC RANGE CALCULATION ---
+    let startRange, endRange;
+
+    if (strictStartObj && strictEndObj) {
+      startRange = strictStartObj;
+      endRange = strictEndObj;
+    } else if (transactions.length > 0) {
+      // The "All" filter: strictly use the first and last transaction dates
+      endRange = dayjs(transactions[0].transaction_date).endOf('day'); // Newest
+      startRange = dayjs(transactions[transactions.length - 1].transaction_date).startOf('day'); // Oldest
+    } else {
+      // Fallback if DB is completely empty and no dates provided
+      startRange = dayjs().startOf('day');
+      endRange = dayjs().endOf('day');
+    }
+
+    const diffDays = endRange.diff(startRange, 'day');
+    const isSingleDay = diffDays === 0;
+
+    const stats = {
+      total_income: 0,
+      total_expense: 0,
+      net_savings: 0,
+      categories: {},
+      sources: {},
+      daily_trend: {}
+    };
+
+    // Initialize daily trend
+    if (isSingleDay) {
+      const yesterday = startRange.subtract(1, 'day').format('YYYY-MM-DD');
+      const today = startRange.format('YYYY-MM-DD');
+      const tomorrow = startRange.add(1, 'day').format('YYYY-MM-DD');
+
       stats.daily_trend[yesterday] = { income: 0, expense: 0 };
       stats.daily_trend[today] = { income: 0, expense: 0 };
       stats.daily_trend[tomorrow] = { income: 0, expense: 0 };
     } else {
-      // For longer ranges, we can shrink the starting point to the first transaction 
-      // if the requested start is very far in the past (like the 'All' filter)
-      let trendStart = startDateObj;
-      let trendEnd = endDateObj;
-      
-      if (diffDays > 31 && transactions.length > 0) {
-        const firstTxDate = dayjs(transactions[0].transaction_date).startOf('day');
-        if (firstTxDate.isAfter(startDateObj)) {
-          trendStart = firstTxDate;
-        }
-      }
-
-      const activeDiff = trendEnd.diff(trendStart, 'day');
-      for (let i = 0; i <= activeDiff; i++) {
-        const dateStr = trendStart.add(i, 'day').format('YYYY-MM-DD');
+      // Create a point for every single day from the first transaction to the last
+      for (let i = 0; i <= diffDays; i++) {
+        const dateStr = startRange.add(i, 'day').format('YYYY-MM-DD');
         stats.daily_trend[dateStr] = { income: 0, expense: 0 };
       }
     }
 
-      transactions.forEach(tx => {
-        const amt = parseFloat(tx.amount || 0);
-        const txTime = dayjs(tx.transaction_date);
-        const txDay = txTime.format('YYYY-MM-DD');
-        
-        // Determine if this transaction belongs to the filtered range for totals
-        // Use inclusive check for dates
-        const isFilteredDay = (txTime.isAfter(startDateObj) || txTime.isSame(startDateObj, 'day')) && 
-                             (txTime.isBefore(endDateObj) || txTime.isSame(endDateObj, 'day'));
+    transactions.forEach(tx => {
+      const amt = parseFloat(tx.amount || 0);
+      const txTime = dayjs(tx.transaction_date);
+      const txDay = txTime.format('YYYY-MM-DD');
 
-        if (tx.transaction_type === 'Income') {
-          if (isFilteredDay) stats.total_income += amt;
-          if (stats.daily_trend[txDay]) stats.daily_trend[txDay].income += amt;
-        } else if (tx.transaction_type === 'Expense') {
-          if (isFilteredDay) {
-            stats.total_expense += amt;
-            // Group by category ONLY for filtered day
-            stats.categories[tx.category] = (stats.categories[tx.category] || 0) + amt;
-          }
-          if (stats.daily_trend[txDay]) stats.daily_trend[txDay].expense += amt;
-        }
+      // RESTORE: Ensure yesterday's data isn't counted in today's totals
+      let isFilteredDay = true;
+      if (strictStartObj && strictEndObj) {
+        isFilteredDay = (txTime.isAfter(strictStartObj) || txTime.isSame(strictStartObj, 'day')) &&
+                        (txTime.isBefore(strictEndObj) || txTime.isSame(strictEndObj, 'day'));
+      }
 
-        // Group by source (fund source) ONLY for filtered day
+      if (tx.transaction_type === 'Income') {
+        if (isFilteredDay) stats.total_income += amt;
+        if (stats.daily_trend[txDay]) stats.daily_trend[txDay].income += amt;
+      } else if (tx.transaction_type === 'Expense') {
         if (isFilteredDay) {
-          stats.sources[tx.source_of_fund] = (stats.sources[tx.source_of_fund] || 0) + amt;
+          stats.total_expense += amt;
+          stats.categories[tx.category] = (stats.categories[tx.category] || 0) + amt;
         }
-      });
+        if (stats.daily_trend[txDay]) stats.daily_trend[txDay].expense += amt;
+      }
+
+      if (isFilteredDay) {
+        stats.sources[tx.source_of_fund] = (stats.sources[tx.source_of_fund] || 0) + amt;
+      }
+    });
 
     stats.net_savings = stats.total_income - stats.total_expense;
 
@@ -189,14 +207,29 @@ router.get('/budgets', async (req, res) => {
 
     if (actualError) throw actualError;
 
+    if (actualError) throw actualError;
+
     // Aggregate actuals
     const actualMap = {};
     actuals.forEach(tx => {
       actualMap[tx.category] = (actualMap[tx.category] || 0) + parseFloat(tx.amount);
     });
 
-    // 3. Merge EVERYTHING based on STANDARD_CATEGORIES
-    const result = STANDARD_CATEGORIES.map(category => {
+    // 3. Merge: Only show standard categories if no custom data exists.
+    // Otherwise, use budgets table and actual transactions as the source of truth.
+    let baseCategories = [];
+    if (Object.keys(budgetMap).length === 0 && Object.keys(actualMap).length === 0) {
+      baseCategories = STANDARD_CATEGORIES;
+    } else {
+      baseCategories = Object.keys(budgetMap);
+    }
+
+    const allCategories = Array.from(new Set([
+      ...baseCategories,
+      ...Object.keys(actualMap)
+    ])).sort();
+
+    const result = allCategories.map(category => {
       return {
         category,
         amount: budgetMap[category] || 0,
@@ -226,6 +259,77 @@ router.post('/budgets', async (req, res) => {
     if (error) throw error;
     res.json(data[0]);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/transactions/budgets/:category
+ * Delete a budget entry.
+ */
+router.delete('/budgets/:category', async (req, res) => {
+  const { category } = req.params;
+
+  try {
+    const { error } = await supabase
+      .from('budgets')
+      .delete()
+      .eq('category', category);
+
+    if (error) throw error;
+    res.json({ message: `Budget for ${category} deleted` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/transactions/categories/rename
+ * Rename a category in both budgets and transactions.
+ */
+router.put('/categories/rename', async (req, res) => {
+  const { oldName, newName } = req.body;
+
+  if (!oldName || !newName) {
+    return res.status(400).json({ error: 'oldName and newName are required' });
+  }
+
+  try {
+    const userId = req.headers['x-user-id'] || null;
+
+    // 1. Update ALL transactions with this category string
+    const txQuery = supabase
+      .from('transactions')
+      .update({ category: newName })
+      .eq('category', oldName);
+
+    if (userId) txQuery.eq('user_id', userId);
+    const { error: txError } = await txQuery;
+    if (txError) throw txError;
+
+    // 2. Update the budget entry if it exists
+    let budgetCheck = supabase
+      .from('budgets')
+      .select('*')
+      .eq('category', oldName);
+
+    if (userId) budgetCheck = budgetCheck.eq('user_id', userId);
+    const { data: existingBudget } = await budgetCheck.maybeSingle();
+
+    if (existingBudget) {
+      let budgetUpdate = supabase
+        .from('budgets')
+        .update({ category: newName, updated_at: new Date().toISOString() })
+        .eq('category', oldName);
+
+      if (userId) budgetUpdate = budgetUpdate.eq('user_id', userId);
+      const { error: budgetError } = await budgetUpdate;
+      if (budgetError) throw budgetError;
+    }
+
+    res.json({ success: true, message: `Category renamed from ${oldName} to ${newName}` });
+  } catch (err) {
+    console.error('[Rename API] Error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -261,6 +365,8 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+const { deleteTransaction } = require('../../storage/expenseStore');
+
 /**
  * DELETE /api/transactions/:id
  * Remove a transaction.
@@ -269,24 +375,29 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', id);
-
-    if (error) throw error;
+    const result = await deleteTransaction(id);
+    if (!result.success) {
+      return res.status(result.error === 'Transaction not found' ? 404 : 500).json({ error: result.error });
+    }
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+const { getActiveCategories } = require('../../services/transactionService');
+
 /**
  * GET /api/transactions/categories
- * Fetch the master list of standard categories.
+ * Fetch the master list of active categories (Budgets + Transactions).
  */
-router.get('/categories', (req, res) => {
-  res.json(STANDARD_CATEGORIES);
+router.get('/categories', async (req, res) => {
+  try {
+    const allCats = await getActiveCategories();
+    res.json(allCats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

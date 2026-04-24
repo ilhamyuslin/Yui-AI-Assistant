@@ -50,6 +50,56 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * PUT /api/accounts/:id
+ * Update an existing account and sync transactions if name changes.
+ */
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, balance, icon } = req.body;
+
+  try {
+    // 1. Get old account info to check for name change
+    const { data: oldAccount, error: fetchError } = await supabase
+      .from('accounts')
+      .select('name')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const oldName = oldAccount.name;
+
+    // 2. Update account table
+    const { data: updatedAccount, error: updateError } = await supabase
+      .from('accounts')
+      .update({ 
+        name, 
+        balance: parseFloat(balance || 0), 
+        icon: icon || '💰',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
+
+    if (updateError) throw updateError;
+
+    // 3. If name changed, update all transactions source_of_fund
+    if (oldName !== name) {
+      const { error: txError } = await supabase
+        .from('transactions')
+        .update({ source_of_fund: name })
+        .eq('source_of_fund', oldName);
+      
+      if (txError) console.error('Failed to sync transactions during account rename:', txError);
+    }
+
+    res.json(updatedAccount[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * DELETE /api/accounts/:id
  * Delete an account.
  */

@@ -1,38 +1,47 @@
-/**
- * botManager.js
- * Manages the lifecycle of the Telegram bot.
- * Supports hot-reload: stop old bot → apply new config → start fresh bot.
- */
-
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const { registerHandlers, setConfig } = require('./handlers');
+const { initScheduler } = require('./scheduler');
 const { initGemini } = require('../ai/gemini');
 
 let botInstance = null;
+let schedulerActive = false;
 let botStatus = 'stopped'; // 'stopped' | 'starting' | 'running' | 'error'
 let botError = null;
-let botInfo = null; // { id, first_name, username }
+let botInfo = null;
 let activeModel = null;
+let startTime = null;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Start the bot with the given config.
+ * Ensures the bot instance exists. Creates it if missing.
  */
-async function startBot(config) {
-  if (botInstance) await stopBot();
-
-  if (!config.telegram_token) {
-    botStatus = 'error';
-    botError = 'Telegram token belum dikonfigurasi.';
-    console.error('[BotManager]', botError);
-    return;
+function ensureBotInstance(token) {
+  if (botInstance) {
+    // If token changed, we MUST destroy and recreate
+    if (botInstance.token !== token) {
+      console.log('[BotManager] Token changed. Recreating bot instance...');
+      botInstance.stopPolling();
+      botInstance.removeAllListeners();
+      botInstance = new TelegramBot(token, { polling: false });
+    }
+    return botInstance;
   }
 
-  if (!config.gemini_api_key) {
+  console.log('[BotManager] Creating new bot instance...');
+  botInstance = new TelegramBot(token, { polling: false });
+  registerHandlers(botInstance);
+  return botInstance;
+}
+
+/**
+ * Start or resume the bot.
+ */
+async function startBot(config) {
+  if (!config.telegram_token) {
     botStatus = 'error';
-    botError = 'Gemini API key belum dikonfigurasi.';
-    console.error('[BotManager]', botError);
+    botError = 'Telegram token missing.';
     return;
   }
 
@@ -40,134 +49,120 @@ async function startBot(config) {
     botStatus = 'starting';
     botError = null;
 
-    // Initialize Gemini
+    // Update dependencies
     initGemini(config);
-
-    // Create bot instance based on environment (Vercel = Webhook, Local = Polling)
-    const isVercel = process.env.VERCEL === '1';
-
-    if (isVercel) {
-      botInstance = new TelegramBot(config.telegram_token);
-
-      const webhookUrl = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/webhook/telegram` : null;
-      if (webhookUrl) {
-        botInstance.setWebHook(webhookUrl).then(() => {
-          console.log(`[BotManager] Webhook configured: ${webhookUrl}`);
-        }).catch(err => {
-          console.error('[BotManager] Failed to set webhook:', err.message);
-        });
-      } else {
-        console.warn('[BotManager] ⚠️ PUBLIC_URL is unset in Vercel! Telegram Webhook cannot be registered.');
-      }
-    } else {
-      botInstance = new TelegramBot(config.telegram_token, { polling: true });
-    }
-
-    // Pass config to handlers
     setConfig(config);
-    registerHandlers(botInstance);
-
-    botStatus = 'running';
     activeModel = config.gemini_model;
 
-    // Fetch Bot Info
-    botInstance.getMe().then(me => {
-      botInfo = {
-        id: me.id,
-        first_name: me.first_name,
-        username: me.username
-      };
-      console.log(`[BotManager] Bot info fetched: @${me.username}`);
-    }).catch(err => {
-      console.warn('[BotManager] Failed to fetch bot info:', err.message);
-    });
+    // 1. Ensure instance exists
+    const bot = ensureBotInstance(config.telegram_token);
 
-    if (isVercel) {
-      console.log('[BotManager] Bot started in WEBHOOK mode! Awaiting requests...');
+    // 2. Start Polling (if not in Vercel)
+    const isVercel = process.env.VERCEL === '1';
+    if (!isVercel) {
+      if (!bot.isPolling()) {
+        console.log('[BotManager] Starting polling...');
+        await bot.startPolling();
+      }
     } else {
-      console.log('[BotManager] Bot started successfully! Polling for messages...');
+      // Webhook logic for Vercel
+      const webhookUrl = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/api/webhook/telegram` : null;
+      if (webhookUrl) await bot.setWebHook(webhookUrl);
+    }
 
-      // Handle polling errors (only for Polling mode)
-      botInstance.on('polling_error', (err) => {
-        // Ignore 409 during transitions briefly
-        if (err.code === 'ETELEGRAM' && err.message.includes('409 Conflict')) {
-          return;
-        }
+    // 3. Fetch Info if missing
+    if (!botInfo) {
+      const me = await bot.getMe();
+      botInfo = { id: me.id, first_name: me.first_name, username: me.username };
+      console.log(`[BotManager] Bot @${me.username} is active.`);
+    }
 
+    botStatus = 'running';
+    startTime = startTime || Date.now();
+
+    // 4. Init Scheduler (only once)
+    if (!schedulerActive) {
+      initScheduler(bot);
+      schedulerActive = true;
+    }
+
+    // Error listener (once only)
+    if (bot.listeners('polling_error').length === 0) {
+      bot.on('polling_error', (err) => {
+        if (err.message.includes('409 Conflict')) return;
         console.error('[BotManager] Polling error:', err.message);
-        if (err.code === 'ETELEGRAM' && err.message.includes('Unauthorized')) {
-          botStatus = 'error';
-          botError = 'Token Telegram tidak valid (Unauthorized).';
-          stopBot();
-        }
       });
     }
 
   } catch (err) {
     botStatus = 'error';
     botError = err.message;
-    console.error('[BotManager] Failed to start bot:', err.message);
+    console.error('[BotManager] Start failed:', err.message);
   }
 }
 
 /**
- * Stop the currently running bot.
+ * Stop polling without destroying the instance.
  */
 async function stopBot() {
   if (!botInstance) return;
 
   try {
-    const isVercel = process.env.VERCEL === '1';
-
-    if (isVercel) {
-      console.log('[BotManager] Stopping bot webhook...');
-      await botInstance.deleteWebHook();
-    } else {
-      console.log('[BotManager] Stopping bot polling...');
-      await botInstance.stopPolling({ cancel: true });
+    console.log('[BotManager] Stopping bot activity...');
+    if (botInstance.isPolling()) {
+      await botInstance.stopPolling();
     }
+    botStatus = 'stopped';
+    startTime = null;
+    console.log('[BotManager] Bot stopped (polling idle).');
   } catch (err) {
-    console.error('[BotManager] Error stopping bot:', err.message);
+    console.error('[BotManager] Stop error:', err.message);
   }
-
-  botInstance = null;
-  botStatus = 'stopped';
-  console.log('[BotManager] Bot stopped.');
 }
 
 /**
- * Restart the bot with new config (used after dashboard saves).
+ * Restart coordinates a full stop and start.
  */
 async function restartBot(config) {
-  console.log('[BotManager] Restarting bot... (Coordinating stop)');
   await stopBot();
-
-  // Crucial: Wait for Telegram to acknowledge polling stop
-  console.log('[BotManager] Waiting for polling to fully clear...');
-  await sleep(2500);
-
+  await sleep(1000);
   await startBot(config);
 }
 
-function getStatus() {
+async function getLatency() {
+  if (!botInstance) return '0 ms';
+  try {
+    const start = Date.now();
+    await botInstance.getMe();
+    return `${Date.now() - start} ms`;
+  } catch {
+    return 'Error';
+  }
+}
+
+async function getStatus() {
+  const uptimeMs = startTime ? Date.now() - startTime : 0;
+  const hours = Math.floor(uptimeMs / 3600000);
+  const mins = Math.floor((uptimeMs % 3600000) / 60000);
+  const secs = Math.floor((uptimeMs % 60000) / 1000);
+  
+  const latency = await getLatency();
+
   return {
     status: botStatus,
     error: botError,
     bot_info: botInfo,
     active_model: activeModel,
-    mode: process.env.VERCEL === '1' ? 'webhook' : 'polling'
+    mode: process.env.VERCEL === '1' ? 'webhook' : 'polling',
+    uptime: startTime ? `${hours}h ${mins}m ${secs}s` : '00:00:00',
+    memory: (process.memoryUsage().rss / 1024 / 1024).toFixed(1) + ' MB',
+    api_latency: latency,
+    node_version: process.version
   };
 }
 
-/**
- * Forward webhook payloads to the bot instance
- */
 function processWebhook(body) {
-  if (botInstance) {
-    botInstance.processUpdate(body);
-  } else {
-    console.warn('[BotManager] Received webhook but botInstance is null');
-  }
+  if (botInstance) botInstance.processUpdate(body);
 }
 
 module.exports = { startBot, stopBot, restartBot, getStatus, processWebhook };

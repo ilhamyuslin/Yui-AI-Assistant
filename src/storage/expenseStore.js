@@ -13,7 +13,7 @@ const { supabase } = require('./supabaseClient');
 async function saveTransaction(data) {
   try {
     const amount = parseFloat(data.amount);
-    
+
     // 1. Insert transaction
     const { error: txError, data: insertedData } = await supabase
       .from('transactions')
@@ -64,27 +64,27 @@ async function saveTransaction(data) {
     } else {
       // Execute Updates
       if (tx.transaction_type === 'Income') {
-        await supabase.from('accounts').update({ 
+        await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
         }).eq('name', tx.source_of_fund);
         balanceUpdated = true;
-      } 
+      }
       else if (tx.transaction_type === 'Expense') {
-        await supabase.from('accounts').update({ 
+        await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
         }).eq('name', tx.source_of_fund);
         balanceUpdated = true;
-      } 
+      }
       else if (tx.transaction_type === 'Transfer' && destAcc) {
         // Atomic update for Source
-        await supabase.from('accounts').update({ 
+        await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
         }).eq('name', tx.source_of_fund);
         // Atomic update for Destination
-        await supabase.from('accounts').update({ 
+        await supabase.from('accounts').update({
           balance: parseFloat(destAcc.balance) + amount,
           updated_at: new Date().toISOString()
         }).eq('name', tx.destination_account);
@@ -92,11 +92,11 @@ async function saveTransaction(data) {
       }
     }
 
-    return { 
-      success: true, 
-      data: tx, 
-      balanceUpdated, 
-      warning: warning ? `⚠️ Saldo tidak diperbarui: ${warning}` : null 
+    return {
+      success: true,
+      data: tx,
+      balanceUpdated,
+      warning: warning ? `⚠️ Saldo tidak diperbarui: ${warning}` : null
     };
   } catch (err) {
     console.error('[ExpenseStore] Error saving transaction:', err.message);
@@ -104,4 +104,86 @@ async function saveTransaction(data) {
   }
 }
 
-module.exports = { saveTransaction };
+/**
+ * Deletes a transaction and reverts the balance changes.
+ * @param {string} id - The transaction ID.
+ * @returns {Promise<{ success: boolean, error: any }>}
+ */
+async function deleteTransaction(id) {
+  try {
+    // 1. Fetch transaction details first
+    const { data: tx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    if (!tx) throw new Error('Transaction not found');
+
+    const amount = parseFloat(tx.amount);
+
+    // 2. Revert balances
+    const accountsNeeded = [tx.source_of_fund];
+    if (tx.transaction_type === 'Transfer' && tx.destination_account) {
+      accountsNeeded.push(tx.destination_account);
+    }
+
+    const { data: accounts, error: accError } = await supabase
+      .from('accounts')
+      .select('name, balance')
+      .in('name', accountsNeeded);
+
+    if (accError) throw accError;
+
+    const accountMap = {};
+    accounts.forEach(a => accountMap[a.name] = a);
+
+    const sourceAcc = accountMap[tx.source_of_fund];
+    const destAcc = tx.destination_account ? accountMap[tx.destination_account] : null;
+
+    if (sourceAcc) {
+      if (tx.transaction_type === 'Income') {
+        // Reverse Income: Subtract from balance
+        await supabase.from('accounts').update({
+          balance: parseFloat(sourceAcc.balance) - amount,
+          updated_at: new Date().toISOString()
+        }).eq('name', tx.source_of_fund);
+      }
+      else if (tx.transaction_type === 'Expense') {
+        // Reverse Expense: Add back to balance
+        await supabase.from('accounts').update({
+          balance: parseFloat(sourceAcc.balance) + amount,
+          updated_at: new Date().toISOString()
+        }).eq('name', tx.source_of_fund);
+      }
+      else if (tx.transaction_type === 'Transfer' && destAcc) {
+        // Reverse Transfer: Source +, Destination -
+        await supabase.from('accounts').update({
+          balance: parseFloat(sourceAcc.balance) + amount,
+          updated_at: new Date().toISOString()
+        }).eq('name', tx.source_of_fund);
+        
+        await supabase.from('accounts').update({
+          balance: parseFloat(destAcc.balance) - amount,
+          updated_at: new Date().toISOString()
+        }).eq('name', tx.destination_account);
+      }
+    }
+
+    // 3. Delete the transaction record
+    const { error: deleteError } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) throw deleteError;
+
+    return { success: true };
+  } catch (err) {
+    console.error('[ExpenseStore] Error deleting transaction:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { saveTransaction, deleteTransaction };

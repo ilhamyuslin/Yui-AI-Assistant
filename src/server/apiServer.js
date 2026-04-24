@@ -8,7 +8,7 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
-const path = require('path');
+
 const os = require('os');
 const configRoutes = require('./routes/configRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
@@ -57,9 +57,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // session middleware removed for serverless compatibility
 
-// Serve dashboard static files
-const dashboardPath = path.join(__dirname, '../../dashboard');
-app.use(express.static(dashboardPath));
+
 
 // Helper to parse cookies
 function getAuthCookie(req) {
@@ -112,10 +110,7 @@ app.post('/api/webhook/telegram', (req, res) => {
   res.sendStatus(200);
 });
 
-// ─── Catch-all: serve dashboard ───────────────────────────────
-app.get('*', (req, res) => {
-  res.sendFile(path.join(dashboardPath, 'index.html'));
-});
+
 
 function startServer() {
   const localIp = getLocalIp();

@@ -5,7 +5,7 @@
  */
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { expenseSchema } = require('./tools/expenseSchema');
+const { getExpenseSchema } = require('./tools/expenseSchema');
 
 let genAI = null;
 let currentModel = null;
@@ -31,15 +31,16 @@ function initGemini(config) {
  * Send a message to Gemini with full conversation history.
  * @param {string} userMessage - The new message from the user.
  * @param {Array} history - Previous conversation turns for context.
- * @returns {Promise<{ text: string, tokensUsed: number }>}
+ * @param {Array} categories - Optional list of categories for classification.
+ * @returns {Promise<{ text: string, tokensUsed: number, functionCalls: Array }>}
  */
-async function chat(userMessage, history = []) {
+async function chat(userMessage, history = [], categories = []) {
   if (!genAI) throw new Error('Gemini tidak terkonfigurasi. Harap set API Key di dashboard.');
 
   const model = genAI.getGenerativeModel({
     model: currentConfig.gemini_model || 'gemini-3.1-flash-lite-preview',
     systemInstruction: currentConfig.system_instruction || 'You are a helpful assistant.',
-    tools: [expenseSchema],
+    tools: [getExpenseSchema(categories)],
   });
 
   const chatSession = model.startChat({

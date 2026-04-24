@@ -13,6 +13,8 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.tz.setDefault('Asia/Jakarta');
 
+const { STANDARD_CATEGORIES } = require('../constants/categories');
+
 /**
  * Common date range calculator.
  */
@@ -199,9 +201,30 @@ async function generateFinancialReport({ range = 'weekly' }) {
   return report;
 }
 
+/**
+ * Fetch the master list of active categories (Budgets + Transactions).
+ * Used for AI classification and dashboard filters.
+ */
+async function getActiveCategories() {
+  const { data: budgets } = await supabase.from('budgets').select('category');
+  const { data: transactions } = await supabase.from('transactions').select('category');
+
+  const budgetCats = (budgets || []).map(b => b.category);
+  const txCats = (transactions || []).map(t => t.category);
+
+  let allCats = Array.from(new Set([...budgetCats, ...txCats])).sort();
+  
+  if (allCats.length === 0) {
+    allCats = STANDARD_CATEGORIES;
+  }
+
+  return allCats;
+}
+
 module.exports = { 
   getTransactionList, 
   getSummaryStats, 
   getBudgetReport,
-  generateFinancialReport 
+  generateFinancialReport,
+  getActiveCategories
 };
