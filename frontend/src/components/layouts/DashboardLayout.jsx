@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useState, Suspense, lazy } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
+import { Plus } from 'lucide-react'
+import { useAccounts } from '@/hooks/useAccounts'
+import { useTransactions } from '@/hooks/useFinancial'
+import { toast } from 'sonner'
+
+const TransactionModal = lazy(() => import('@/components/dashboard/TransactionModal'))
 
 const NAV_ITEMS = [
   {
@@ -51,6 +57,24 @@ export default function DashboardLayout() {
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
+
+  const { accounts, refresh: refreshAccounts } = useAccounts()
+  const { add } = useTransactions()
+
+  const handleSaveTransaction = async (data) => {
+    try {
+      await add(data)
+      toast.success('Transaksi berhasil disimpan')
+      await refreshAccounts()
+      setIsTransactionModalOpen(false)
+      // Signal pages to refresh data
+      window.dispatchEvent(new CustomEvent('transaction-saved'))
+    } catch (err) {
+      toast.error('Gagal menyimpan transaksi')
+      console.error(err)
+    }
+  }
 
   const handleLogout = async () => {
     await logout()
@@ -264,7 +288,7 @@ export default function DashboardLayout() {
         </div>
 
         {/* Page content - Scrollable */}
-        <main className="h-full overflow-y-auto overflow-x-hidden no-scrollbar relative bg-transparent pt-[71px] pb-16 lg:pt-0 lg:pb-0">
+        <main className="h-full overflow-y-auto overflow-x-hidden no-scrollbar bg-transparent pt-[71px] pb-16 lg:pt-0 lg:pb-0">
           <div className="p-6 md:p-10 max-w-[1600px] w-full mx-auto">
             <Outlet />
           </div>
@@ -277,7 +301,7 @@ export default function DashboardLayout() {
               const allItems = NAV_ITEMS.flatMap(section => section.items)
               // Custom order for mobile: [Status, Dashboard, Config]
               const mobileItems = [allItems[1], allItems[0], allItems[2]]
-              
+
               return mobileItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -310,6 +334,32 @@ export default function DashboardLayout() {
             })()}
           </div>
         </nav>
+
+        {/* Global Floating Transaction Widget (Centered Glass Style) */}
+        <button
+          onClick={() => setIsTransactionModalOpen(true)}
+          className="fixed bottom-[90px] lg:bottom-[34px] left-1/2 -translate-x-1/2 z-[110] group flex items-center gap-2.5 p-1.5 pr-5 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:shadow-emerald-200/40 hover:scale-105 active:scale-95 transition-all duration-500"
+        >
+          <div className="w-9 h-9 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg group-hover:rotate-90 transition-transform duration-500">
+            <Plus size={18} strokeWidth={3} />
+          </div>
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-900">Add New</span>
+            <span className="text-[7px] font-bold uppercase tracking-wider text-slate-500/80">Transaction</span>
+          </div>
+        </button>
+
+        <Suspense fallback={null}>
+          {isTransactionModalOpen && (
+            <TransactionModal
+              open={isTransactionModalOpen}
+              onOpenChange={setIsTransactionModalOpen}
+              accounts={accounts}
+              categories={['Makan & Minum', 'Belanja Bulanan', 'Transportasi', 'Tagihan & Utilitas', 'Kesehatan', 'Hiburan', 'Sedekah & Hadiah', 'Lainnya']}
+              onSave={handleSaveTransaction}
+            />
+          )}
+        </Suspense>
       </div>
     </div>
   )

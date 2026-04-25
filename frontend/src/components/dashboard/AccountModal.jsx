@@ -16,17 +16,26 @@ const IconComponent = ({ name, size = 20 }) => {
   return <Icon size={size} />
 }
 
-export default function AccountModal({ open, onOpenChange, accounts, onSave, onDelete }) {
+export default function AccountModal({ open, onOpenChange, accounts, onSave, onDelete, defaultAccount = null }) {
   const [formData, setFormData] = useState({ name: '', balance: '', icon: '💰' })
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState(null)
 
-  // Reset form when opening to add new
+  // Reset form when opening — pre-fill if defaultAccount is provided
   useEffect(() => {
-    if (open && !selectedAccountId) {
-      setFormData({ name: '', balance: '', icon: '💰' })
+    if (open) {
+      if (defaultAccount) {
+        setSelectedAccountId(defaultAccount.id)
+        setFormData({
+          name: defaultAccount.name,
+          balance: defaultAccount.balance.toLocaleString('id-ID'),
+          icon: defaultAccount.icon || '💰'
+        })
+      } else if (!selectedAccountId) {
+        setFormData({ name: '', balance: '', icon: '💰' })
+      }
     }
-  }, [open, selectedAccountId])
+  }, [open, defaultAccount])
 
   const handleSave = (e) => {
     e.preventDefault()

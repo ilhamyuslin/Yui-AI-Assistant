@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -13,10 +13,13 @@ import ExpenseCategoryChart from '@/components/dashboard/ExpenseCategoryChart'
 import SmartAnalysisPanel from '@/components/dashboard/SmartAnalysisPanel'
 import TransactionTable from '@/components/dashboard/TransactionTable'
 import ConfirmModal from '@/components/dashboard/ConfirmModal'
+const TransactionModal = lazy(() => import('@/components/dashboard/TransactionModal'))
 import { useAccounts } from '@/hooks/useAccounts'
+import { useInvestments } from '@/hooks/useInvestments'
 import { configApi, statsApi } from '@/lib/api'
-import { Check, Tag, Calendar, X, PieChart, LayoutList } from 'lucide-react'
+import { Check, Tag, Calendar, X, PieChart, LayoutList, Plus } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import InvestmentSection from '@/components/dashboard/InvestmentSection'
 
 const QUICK_FILTERS = [
   { key: 'today', label: 'Today', short: 'D' },
@@ -47,38 +50,36 @@ export default function Overview() {
   const { stats, loading: statsLoading, fetch: fetchStats, error: statsError } = useStats()
   const { stats: trendStats, loading: trendLoading, fetch: fetchTrendStats } = useStats()
   const { stats: stableStats, loading: stableStatsLoading, fetch: fetchStableStats } = useStats()
-  const { transactions, loading: txLoading, fetch: fetchTx, error: txError, remove, update } = useTransactions()
+  const { transactions, loading: txLoading, fetch: fetchTx, error: txError, remove, update, add } = useTransactions()
   const { budgets, loading: budgetLoading, fetch: fetchBudgets, update: updateBudget, remove_budget: removeBudget, rename: renameBudget } = useBudgets()
   const { accounts, totalAssets, loading: accountLoading, upsertAccount, deleteAccount, refresh: refreshAccounts } = useAccounts()
+  const { investments, totalPortfolio, totalCost, loading: investLoading, fetch: fetchInvestments, add: addInvestment, update: updateInvestment, remove: removeInvestment } = useInvestments()
 
   const loading = statsLoading || txLoading || budgetLoading || accountLoading || stableStatsLoading
   const error = statsError || txError
 
-  const loadAll = useCallback(async (range, categories = [], currentFilter) => {
+  const loadAll = useCallback(async (range, categories = []) => {
     const cycleRange = getQuickFilterRange('cycle', payDay)
-    
-    const targetFilter = currentFilter || activeFilter
-    const isAll = targetFilter === 'all'
-    const isToday = targetFilter === 'today'
-    
-    const stableRange = isAll ? getQuickFilterRange('all') : cycleRange
-
-    // For 'today', we want metrics to be precise (today only), 
-    // but chart to be wider (H-1 to H+1)
-    const metricRange = isToday ? {
-      startDate: dayjs().startOf('day').toISOString(),
-      endDate: dayjs().endOf('day').toISOString()
-    } : range;
 
     await Promise.all([
-      fetchStats(metricRange.startDate, metricRange.endDate, categories),
-      fetchTrendStats(range.startDate, range.endDate, categories),
-      fetchStableStats(stableRange.startDate, stableRange.endDate, []),
-      fetchTx({ startDate: range.startDate, endDate: range.endDate, category: categories }),
+      fetchStats(range?.startDate, range?.endDate, categories),
+      fetchTrendStats(range?.startDate, range?.endDate),
+      fetchStableStats(cycleRange.startDate, cycleRange.endDate),
+      fetchTx({ startDate: range?.startDate, endDate: range?.endDate, category: categories }),
       fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate }),
-      refreshAccounts()
+      refreshAccounts(),
+      fetchInvestments(),
     ])
-  }, [fetchStats, fetchStableStats, fetchTx, fetchBudgets, refreshAccounts, payDay, activeFilter])
+  }, [fetchStats, fetchTrendStats, fetchStableStats, fetchTx, fetchBudgets, refreshAccounts, fetchInvestments, payDay])
+
+  // Refresh data if global transaction is saved
+  useEffect(() => {
+    const handleGlobalRefresh = () => {
+      loadAll(dateRange, selectedCategories, activeFilter)
+    }
+    window.addEventListener('transaction-saved', handleGlobalRefresh)
+    return () => window.removeEventListener('transaction-saved', handleGlobalRefresh)
+  }, [loadAll, dateRange, selectedCategories, activeFilter])
 
   // Initial loads
   useEffect(() => {
@@ -138,9 +139,9 @@ export default function Overview() {
   const handleApplyCustomDate = () => {
     if (!customRange.start || !customRange.end) return
     setActiveFilter('custom')
-    const range = { 
-      startDate: dayjs(customRange.start).startOf('day').toISOString(), 
-      endDate: dayjs(customRange.end).endOf('day').toISOString() 
+    const range = {
+      startDate: dayjs(customRange.start).startOf('day').toISOString(),
+      endDate: dayjs(customRange.end).endOf('day').toISOString()
     }
     setDateRange(range)
     loadAll(range, selectedCategories, 'custom')
@@ -429,11 +430,11 @@ export default function Overview() {
               </div>
             </div>
             <div className="p-6 flex-1 flex flex-col" style={{ minHeight: 260 }}>
-              <TrendChart 
-                dailyTrend={trendStats?.daily_trend} 
+              <TrendChart
+                dailyTrend={trendStats?.daily_trend}
                 startDate={dateRange.startDate}
                 endDate={dateRange.endDate}
-                loading={trendLoading || statsLoading} 
+                loading={trendLoading || statsLoading}
               />
             </div>
           </div>
@@ -476,7 +477,18 @@ export default function Overview() {
           }}
         />
 
-        {/* ── 4. Section: Transaction Analysis ── */}
+        {/* ── 4. Section: Investment Portfolio ── */}
+        <InvestmentSection
+          investments={investments}
+          totalPortfolio={totalPortfolio}
+          totalCost={totalCost}
+          loading={investLoading}
+          onAdd={addInvestment}
+          onUpdate={updateInvestment}
+          onDelete={removeInvestment}
+        />
+
+        {/* ── 5. Section: Transaction Analysis ── */}
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-8 mt-10 mb-2">
           {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
           <div className="flex flex-col gap-8 h-full">

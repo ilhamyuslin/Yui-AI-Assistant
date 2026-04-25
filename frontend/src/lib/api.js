@@ -130,10 +130,10 @@ export const statsApi = {
       supabase.from('transactions').select('category'),
       supabase.from('budgets').select('category')
     ])
-    
+
     const txCats = txRes.data ? txRes.data.map(d => d.category) : []
     const bgCats = bgRes.data ? bgRes.data.map(d => d.category) : []
-    
+
     const unique = [...new Set([...txCats, ...bgCats])].filter(Boolean).sort()
     return { data: unique }
   }
@@ -177,6 +177,25 @@ export const transactionApi = {
 
     if (error) throw error
     return { success: true }
+  },
+
+  create: async (data) => {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('Unauthorized')
+
+    const { data: result, error } = await supabase.rpc('record_manual_transaction', {
+      p_user_id: user.id,
+      p_type: data.transaction_type,
+      p_amount: data.amount,
+      p_item_name: data.item_name,
+      p_category: data.category,
+      p_source_account: data.source_of_fund,
+      p_notes: data.transaction_notes,
+      p_date: data.transaction_date
+    })
+
+    if (error) throw error
+    return { data: result }
   },
 }
 
@@ -260,15 +279,22 @@ export const accountApi = {
   },
 
   create: async (data) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: created, error } = await supabase
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('Unauthorized')
+
+    const { data: result, error } = await supabase
       .from('accounts')
-      .insert({ ...data, user_id: user?.id })
+      .insert({
+        user_id: user.id,
+        name: data.name,
+        balance: data.balance,
+        icon: data.icon
+      })
       .select()
       .single()
 
     if (error) throw error
-    return { data: created }
+    return { data: result }
   },
 
   update: async (id, data) => {
@@ -341,6 +367,62 @@ export const botApi = {
         command: 'restart',
         status: 'pending'
       }])
+
+    if (error) throw error
+    return { success: true }
+  },
+}
+
+// ─── Investments ──────────────────────────────────────────────
+export const investmentApi = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from('investments')
+      .select('*')
+      .order('purchase_date', { ascending: false })
+
+    if (error) throw error
+
+    const totalPortfolio = (data || []).reduce((acc, inv) => {
+      return acc + Number(inv.current_value ?? inv.purchase_value)
+    }, 0)
+
+    const totalCost = (data || []).reduce((acc, inv) => acc + Number(inv.purchase_value), 0)
+
+    return { data: { investments: data || [], totalPortfolio, totalCost } }
+  },
+
+  create: async (payload) => {
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw new Error('Unauthorized')
+
+    const { data, error } = await supabase
+      .from('investments')
+      .insert([{ ...payload, user_id: user.id }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data }
+  },
+
+  update: async (id, payload) => {
+    const { data, error } = await supabase
+      .from('investments')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data }
+  },
+
+  delete: async (id) => {
+    const { error } = await supabase
+      .from('investments')
+      .delete()
+      .eq('id', id)
 
     if (error) throw error
     return { success: true }

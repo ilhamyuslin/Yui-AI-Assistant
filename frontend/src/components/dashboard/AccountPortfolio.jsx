@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Wallet, Settings2, Plus, Banknote, CreditCard, Landmark, Smartphone, Coins, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Wallet, Settings2, Plus, Banknote, CreditCard, Landmark, Smartphone, Coins, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import AccountModal from './AccountModal'
 
@@ -11,6 +11,7 @@ const IconComponent = ({ name, size = 18, className }) => {
 
 export default function AccountPortfolio({ accounts, totalAssets, loading, onUpdate, onDelete }) {
   const [modalOpen, setModalOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState(null)
   const scrollRef = useRef(null)
   const [scrollIndex, setScrollIndex] = useState(0)
 
@@ -119,7 +120,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
             {!loading && accounts.map(acc => (
               <div
                 key={acc.id}
-                className="min-w-[240px] bg-white border border-slate-100 rounded-[2rem] p-6 flex flex-col justify-center shadow-sm hover:shadow-md transition-all group shrink-0"
+                className="min-w-[240px] bg-white border border-slate-100 rounded-[2rem] p-6 flex flex-col justify-center shadow-sm hover:shadow-md transition-all group shrink-0 relative overflow-hidden"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-10 h-10 bg-slate-50 flex items-center justify-center rounded-2xl border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-100 group-hover:text-emerald-500 transition-all text-slate-400">
@@ -136,6 +137,22 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
                   <span className="block text-xl font-black text-slate-800 tracking-tight">
                     {formatCurrency(acc.balance)}
                   </span>
+                </div>
+
+                {/* Hover Actions */}
+                <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setEditTarget(acc); setModalOpen(true) }}
+                    className="w-7 h-7 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-blue-500 hover:border-blue-100 flex items-center justify-center shadow-sm transition-all"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(acc.id)}
+                    className="w-7 h-7 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-rose-500 hover:border-rose-100 flex items-center justify-center shadow-sm transition-all"
+                  >
+                    <Trash2 size={11} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -157,10 +174,11 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
 
       <AccountModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={(v) => { setModalOpen(v); if (!v) setEditTarget(null) }}
         accounts={accounts}
         onSave={onUpdate}
         onDelete={onDelete}
+        defaultAccount={editTarget}
       />
     </div>
   )

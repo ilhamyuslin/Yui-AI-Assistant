@@ -64,7 +64,12 @@ export function useTransactions() {
     setTransactions(prev => prev.map(t => t.id === id ? updated : t))
   }, [])
 
-  return { transactions, loading, fetch, remove, update }
+  const add = useCallback(async (data) => {
+    const { data: result } = await transactionApi.create(data)
+    return result
+  }, [])
+
+  return { transactions, loading, fetch, remove, update, add }
 }
 
 /**
@@ -76,7 +81,7 @@ function getActualPayday(date, payDay) {
   if (d.date() !== payDay && payDay > 28) {
     d = date.endOf('month')
   }
-  
+
   const dayOfWeek = d.day() // 0 = Sunday, 6 = Saturday
   if (dayOfWeek === 6) return d.subtract(1, 'day')
   if (dayOfWeek === 0) return d.subtract(2, 'day')
@@ -87,20 +92,20 @@ export function getQuickFilterRange(filter, payDay = 25) {
   const today = dayjs()
   switch (filter) {
     case 'today':
-      return { 
-        startDate: today.subtract(1, 'day').startOf('day').toISOString(), 
-        endDate: today.add(1, 'day').endOf('day').toISOString() 
+      return {
+        startDate: today.subtract(1, 'day').startOf('day').toISOString(),
+        endDate: today.add(1, 'day').endOf('day').toISOString()
       }
     case 'week':
-      return { 
-        startDate: today.startOf('isoWeek').toISOString(), 
-        endDate: today.endOf('day').toISOString() 
+      return {
+        startDate: today.startOf('isoWeek').toISOString(),
+        endDate: today.endOf('day').toISOString()
       }
     case 'cycle': {
       let start, end
-      
+
       const currentPayday = getActualPayday(today, payDay)
-      
+
       if (today.isBefore(currentPayday, 'day')) {
         start = getActualPayday(today.subtract(1, 'month'), payDay)
         end = currentPayday.subtract(1, 'day').endOf('day')
