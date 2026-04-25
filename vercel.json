@@ -1,6 +1,7 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
+  "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -12,15 +13,15 @@
     },
     {
       "source": "/assets/:path*",
-      "destination": "/frontend/dist/assets/:path*"
+      "destination": "/assets/:path*"
     },
     {
       "source": "/favicon.svg",
-      "destination": "/frontend/dist/favicon.svg"
+      "destination": "/favicon.svg"
     },
     {
       "source": "/((?!api|auth).*)",
-      "destination": "/frontend/dist/index.html"
+      "destination": "/index.html"
     }
   ]
 }
