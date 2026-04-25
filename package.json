@@ -5,7 +5,8 @@
   "main": "api/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "/Users/ilham/Documents/Project/Node/node-runtime/bin/node node_modules/.bin/nodemon src/index.js"
+    "dev": "/Users/ilham/Documents/Project/Node/node-runtime/bin/node node_modules/.bin/nodemon src/index.js",
+    "build": "npm install --prefix frontend && npm run build --prefix frontend"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.0",
