@@ -1,22 +1,26 @@
 {
   "version": 2,
   "buildCommand": "npm install && npm run build --prefix frontend",
-  "outputDirectory": "frontend/dist",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "source": "/api/:path*",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/auth/(.*)",
-      "dest": "/api/index.js"
+      "source": "/auth/:path*",
+      "destination": "/api/index.js"
     },
     {
-      "handle": "filesystem"
+      "source": "/assets/:path*",
+      "destination": "/frontend/dist/assets/:path*"
     },
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/favicon.svg",
+      "destination": "/frontend/dist/favicon.svg"
+    },
+    {
+      "source": "/((?!api|auth).*)",
+      "destination": "/frontend/dist/index.html"
     }
   ]
 }
