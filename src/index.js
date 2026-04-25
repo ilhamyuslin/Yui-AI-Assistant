@@ -9,9 +9,15 @@ require('dotenv').config();
 const { startServer } = require('./server/apiServer');
 const { getConfig } = require('./storage/configStore');
 const { startBot } = require('./bot/botManager');
+const { startHeartbeat } = require('./services/heartbeatService');
+const { startCommandListener } = require('./services/commandService');
 
 async function main() {
   console.log('🚀 Starting AI Assistant...\n');
+
+  // Start reporting and listening for remote commands
+  startHeartbeat();
+  startCommandListener();
 
   // Start the web dashboard server
   startServer();

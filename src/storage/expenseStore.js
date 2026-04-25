@@ -18,6 +18,7 @@ async function saveTransaction(data) {
     const { error: txError, data: insertedData } = await supabase
       .from('transactions')
       .insert([{
+        user_id: process.env.DEFAULT_USER_ID,
         message_id: data.message_id,
         transaction_type: data.transaction_type, // 'Expense', 'Income', or 'Transfer'
         amount: amount,

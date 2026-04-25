@@ -45,6 +45,7 @@ export default function Overview() {
   const touchStartRef = useRef(0)
 
   const { stats, loading: statsLoading, fetch: fetchStats, error: statsError } = useStats()
+  const { stats: trendStats, loading: trendLoading, fetch: fetchTrendStats } = useStats()
   const { stats: stableStats, loading: stableStatsLoading, fetch: fetchStableStats } = useStats()
   const { transactions, loading: txLoading, fetch: fetchTx, error: txError, remove, update } = useTransactions()
   const { budgets, loading: budgetLoading, fetch: fetchBudgets, update: updateBudget, remove_budget: removeBudget, rename: renameBudget } = useBudgets()
@@ -56,13 +57,22 @@ export default function Overview() {
   const loadAll = useCallback(async (range, categories = [], currentFilter) => {
     const cycleRange = getQuickFilterRange('cycle', payDay)
     
-    // Use the explicitly passed filter if available, otherwise fallback to state
     const targetFilter = currentFilter || activeFilter
     const isAll = targetFilter === 'all'
+    const isToday = targetFilter === 'today'
+    
     const stableRange = isAll ? getQuickFilterRange('all') : cycleRange
 
+    // For 'today', we want metrics to be precise (today only), 
+    // but chart to be wider (H-1 to H+1)
+    const metricRange = isToday ? {
+      startDate: dayjs().startOf('day').toISOString(),
+      endDate: dayjs().endOf('day').toISOString()
+    } : range;
+
     await Promise.all([
-      fetchStats(range.startDate, range.endDate, categories),
+      fetchStats(metricRange.startDate, metricRange.endDate, categories),
+      fetchTrendStats(range.startDate, range.endDate, categories),
       fetchStableStats(stableRange.startDate, stableRange.endDate, []),
       fetchTx({ startDate: range.startDate, endDate: range.endDate, category: categories }),
       fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate }),
@@ -128,7 +138,10 @@ export default function Overview() {
   const handleApplyCustomDate = () => {
     if (!customRange.start || !customRange.end) return
     setActiveFilter('custom')
-    const range = { startDate: customRange.start, endDate: customRange.end }
+    const range = { 
+      startDate: dayjs(customRange.start).startOf('day').toISOString(), 
+      endDate: dayjs(customRange.end).endOf('day').toISOString() 
+    }
     setDateRange(range)
     loadAll(range, selectedCategories, 'custom')
   }
@@ -240,7 +253,7 @@ export default function Overview() {
 
       {/* Sticky Quick Filters Widget */}
       <div className="sticky top-[0.5rem] z-40 mb-8 lg:static lg:mb-10 lg:z-auto">
-        <div className="flex items-center justify-start sm:justify-start bg-white/70 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 gap-1 w-full sm:w-auto">
+        <div className="flex items-center bg-white/70 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 gap-1 w-full sm:w-fit">
           {/* Refresh Button */}
           <button
             onClick={handleRefresh}
@@ -255,20 +268,20 @@ export default function Overview() {
             </svg>
           </button>
 
-          <div className="w-[1px] h-5 bg-slate-100 mx-1" />
+          <div className="w-[1px] h-5 bg-slate-100 mx-1 sm:mx-2" />
 
           {/* Quick Pills */}
           <div
             onTouchStart={handleFilterTouchStart}
             onTouchEnd={handleFilterTouchEnd}
-            className="flex-1 flex items-center gap-1 min-w-0"
+            className="flex-1 sm:flex-none flex items-center gap-1 sm:gap-1.5 min-w-0"
           >
             {QUICK_FILTERS.map(({ key, label, short }) => (
               <button
                 key={key}
                 onClick={() => handleQuickFilter(key)}
                 className={cn(
-                  'flex-1 px-1 py-2 rounded-xl text-[0.7rem] font-black transition-all duration-300 whitespace-nowrap min-w-0 flex items-center justify-center',
+                  'flex-1 sm:flex-none px-2 sm:px-5 py-2 sm:py-2.5 rounded-xl text-[0.7rem] sm:text-[0.8rem] font-black transition-all duration-300 whitespace-nowrap min-w-0 sm:min-w-[90px] flex items-center justify-center',
                   activeFilter === key
                     ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100 scale-[1.02]'
                     : 'text-slate-500 hover:bg-slate-50 active:bg-slate-100'
@@ -280,7 +293,7 @@ export default function Overview() {
             ))}
           </div>
 
-          <div className="w-[1px] h-5 bg-slate-100 mx-1 hidden sm:block" />
+          <div className="w-[1px] h-5 bg-slate-100 mx-1 sm:mx-2 hidden sm:block" />
 
           {/* Category Filter Dropdown */}
           <DropdownMenu.Root>
@@ -416,7 +429,12 @@ export default function Overview() {
               </div>
             </div>
             <div className="p-6 flex-1 flex flex-col" style={{ minHeight: 260 }}>
-              <TrendChart dailyTrend={stats?.daily_trend} loading={statsLoading} />
+              <TrendChart 
+                dailyTrend={trendStats?.daily_trend} 
+                startDate={dateRange.startDate}
+                endDate={dateRange.endDate}
+                loading={trendLoading || statsLoading} 
+              />
             </div>
           </div>
 
@@ -485,6 +503,7 @@ export default function Overview() {
               totalExpense={stats?.total_expense || 0}
               payDay={payDay}
               categories={stats?.categories || {}}
+              budgets={budgets}
               loading={statsLoading}
               className="flex-1"
             />
@@ -527,6 +546,9 @@ export default function Overview() {
                 const cycleRange = getQuickFilterRange('cycle', payDay)
                 fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
                 fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
+                // Refresh category list
+                const { data: catData } = await statsApi.getCategories()
+                setAllCategories(catData || [])
                 toast.success(`Budget ${category} disimpan`)
               } else {
                 toast.error('Gagal menyimpan budget')
@@ -544,6 +566,9 @@ export default function Overview() {
                 const cycleRange = getQuickFilterRange('cycle', payDay)
                 fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
                 fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
+                // Refresh category list
+                const { data: catData } = await statsApi.getCategories()
+                setAllCategories(catData || [])
                 toast.success(`Budget ${category} dihapus`)
               } else {
                 toast.error('Gagal menghapus budget')
@@ -561,6 +586,9 @@ export default function Overview() {
                 const cycleRange = getQuickFilterRange('cycle', payDay)
                 fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
                 fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
+                // Refresh category list
+                const { data: catData } = await statsApi.getCategories()
+                setAllCategories(catData || [])
                 toast.success(`Kategori diubah ke ${newName}`)
               } else {
                 toast.error('Gagal mengubah kategori')

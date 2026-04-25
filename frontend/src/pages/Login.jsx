@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { Eye, EyeOff, Lock, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react'
+import { Eye, EyeOff, Lock, ArrowRight, ShieldCheck, Sparkles, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function Login() {
   const { login } = useAuth()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -18,15 +19,15 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!password) return
+    if (!email || !password) return
     setLoading(true)
     setError('')
     try {
-      await login(password)
+      await login(email, password)
       toast.success('Login berhasil! Selamat datang.')
     } catch (err) {
-      setError(err.response?.data?.error || 'Password salah. Coba lagi.')
-      toast.error('Gagal masuk. Cek password kamu.')
+      setError(err.message || 'Email atau password salah. Coba lagi.')
+      toast.error('Gagal masuk. Periksa kembali detail login kamu.')
     } finally {
       setLoading(false)
     }
@@ -112,11 +113,36 @@ export default function Login() {
             </div>
 
             {/* Form Area */}
-            <form onSubmit={handleSubmit} className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Email Field */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between px-2">
+                <div className="px-2">
+                  <label htmlFor="email" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
+                    Email Address
+                  </label>
+                </div>
+                
+                <div className="relative group/input">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within/input:text-emerald-400 transition-colors duration-300">
+                    <User size={20} strokeWidth={2.5} />
+                  </div>
+                  
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-5 pl-14 pr-6 text-white placeholder:text-white/10 outline-none transition-all duration-300 focus:bg-white/[0.08] focus:border-emerald-500 focus:ring-8 focus:ring-emerald-500/10 text-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="space-y-3">
+                <div className="px-2">
                   <label htmlFor="password" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">
-                    Security Key
+                    Secure Password
                   </label>
                 </div>
                 
@@ -130,7 +156,7 @@ export default function Login() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter secure password"
+                    placeholder="••••••••"
                     className="w-full bg-white/[0.05] border border-white/10 rounded-2xl py-5 pl-14 pr-16 text-white placeholder:text-white/10 outline-none transition-all duration-300 focus:bg-white/[0.08] focus:border-emerald-500 focus:ring-8 focus:ring-emerald-500/10 text-lg"
                   />
                   
@@ -158,7 +184,7 @@ export default function Login() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={loading || !password}
+                disabled={loading || !email || !password}
                 className="group relative w-full h-16 bg-emerald-500 hover:bg-emerald-400 disabled:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed text-black font-black text-sm uppercase tracking-widest rounded-2xl overflow-hidden transition-all duration-300 active:scale-[0.98] shadow-[0_8px_32px_rgba(16,185,129,0.3)]"
               >
                 {/* Shimmer Effect */}

@@ -14,6 +14,7 @@ export default function SmartAnalysisPanel({
   totalExpense = 0, 
   payDay = 25, 
   categories = {},
+  budgets = [],
   loading,
   className
 }) {
@@ -45,10 +46,36 @@ export default function SmartAnalysisPanel({
 
   const daysUntilPayday = nextPaydayDate.diff(today.startOf('day'), 'day')
 
-  // Savings Logic (35% Target)
-  const allowableExpense = income * 0.65
+  // --- NEW CUSTOM LOGIC: Disposable Daily Limit (Priority: 35% Saving) ---
+  const fixedKeywords = ['rumah', 'tagihan', 'tempat tinggal']
+  
+  // 1. Hard Limit: Hanya boleh pakai 65% dari gaji (35% WAJIB SAVE)
+  const maxAllowableSpending = income * 0.65
+
+  // 2. Hitung budget khusus fixed costs dari tabel
+  const fixedBudgetSum = budgets
+    .filter(b => fixedKeywords.some(key => b.category?.toLowerCase().includes(key)))
+    .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+
+  // 3. Hitung pengeluaran di kategori fixed costs
+  const fixedExpenseSum = Object.entries(categories)
+    .filter(([name]) => fixedKeywords.some(key => name.toLowerCase().includes(key)))
+    .reduce((acc, [_, val]) => acc + (Number(val) || 0), 0)
+
+  // 4. Hitung pengeluaran variabel (total - pengeluaran fixed)
+  const variableExpenseSum = totalExpense - fixedExpenseSum
+  
+  // 5. Jatah uang "bebas" (Max Spending - Fixed Costs - Yang Sudah Dipakai)
+  const netDisposableBudget = Math.max(0, maxAllowableSpending - fixedBudgetSum)
+  const remainingMoney = Math.max(0, netDisposableBudget - variableExpenseSum)
+
+  // 6. Daily Limit Baru: Sisa jatah dibagi sisa hari
+  const dailySafeSpend = Math.floor(remainingMoney / Math.max(1, daysUntilPayday))
+  
+  // Overall Health Metrics
+  const allowableExpense = maxAllowableSpending
   const remainingBudget = Math.max(0, allowableExpense - totalExpense)
-  const dailySafeSpend = Math.floor(remainingBudget / Math.max(1, daysUntilPayday))
+  // --- END NEW LOGIC ---
   
   // Budget Health Status
   const currentSavingsPercent = income > 0 ? Math.max(0, ((income - totalExpense) / income) * 100) : 0

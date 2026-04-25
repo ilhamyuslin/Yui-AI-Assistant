@@ -87,31 +87,35 @@ export function getQuickFilterRange(filter, payDay = 25) {
   const today = dayjs()
   switch (filter) {
     case 'today':
-      return { startDate: today.format('YYYY-MM-DD'), endDate: today.format('YYYY-MM-DD') }
+      return { 
+        startDate: today.subtract(1, 'day').startOf('day').toISOString(), 
+        endDate: today.add(1, 'day').endOf('day').toISOString() 
+      }
     case 'week':
-      return { startDate: today.startOf('isoWeek').format('YYYY-MM-DD'), endDate: today.format('YYYY-MM-DD') }
+      return { 
+        startDate: today.startOf('isoWeek').toISOString(), 
+        endDate: today.endOf('day').toISOString() 
+      }
     case 'cycle': {
       let start, end
       
-      // Calculate actual payday for current month and surrounding months
       const currentPayday = getActualPayday(today, payDay)
       
       if (today.isBefore(currentPayday, 'day')) {
-        // We are still in the previous cycle
         start = getActualPayday(today.subtract(1, 'month'), payDay)
-        end = currentPayday.subtract(1, 'day')
+        end = currentPayday.subtract(1, 'day').endOf('day')
       } else {
-        // We have reached or passed the payday, so new cycle starts
         start = currentPayday
-        end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day')
+        end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day').endOf('day')
       }
 
       return {
-        startDate: start.format('YYYY-MM-DD'),
-        endDate: end.format('YYYY-MM-DD')
+        startDate: start.startOf('day').toISOString(),
+        endDate: end.toISOString()
       }
     }
     case 'all':
+      return { startDate: null, endDate: null }
     default:
       return { startDate: null, endDate: null }
   }

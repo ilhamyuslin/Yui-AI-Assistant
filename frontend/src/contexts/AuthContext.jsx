@@ -13,8 +13,8 @@ export function AuthProvider({ children }) {
 
   const checkSession = async () => {
     try {
-      const { data } = await authApi.check()
-      setIsAuthenticated(data.authenticated)
+      const { authenticated } = await authApi.check()
+      setIsAuthenticated(authenticated)
     } catch {
       setIsAuthenticated(false)
     } finally {
@@ -22,10 +22,10 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const login = async (password) => {
-    const { data } = await authApi.login(password)
-    if (data.success) setIsAuthenticated(true)
-    return data
+  const login = async (email, password) => {
+    const { success, user } = await authApi.login(email, password)
+    if (success) setIsAuthenticated(true)
+    return { success, user }
   }
 
   const logout = async () => {

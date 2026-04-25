@@ -66,7 +66,7 @@ router.get('/status', async (req, res) => {
   try {
     const status = await getStatus();
     let dbStatus = { state: 'connected', host: 'Supabase' };
-    
+
     try {
       // Quick ping to check Supabase connection
       const { error } = await supabase.from('ai_assistant_config').select('id').limit(1);
@@ -128,27 +128,43 @@ router.post('/status/start', async (req, res) => {
 
 // POST /api/config/test-gemini — Test Gemini API key
 router.post('/test-gemini', async (req, res) => {
+  console.log('[Test Gemini] Incoming Key:', req.body.gemini_api_key ? (req.body.gemini_api_key.includes('*') ? 'MASKED' : 'PROVIDED') : 'EMPTY');
   try {
-    const { gemini_api_key, gemini_model } = req.body;
-    if (!gemini_api_key) return res.status(400).json({ error: 'API key diperlukan.' });
+    let { gemini_api_key, gemini_model } = req.body;
+    
+    // Fallback ke database jika input adalah sensor (ada bintang)
+    if (gemini_api_key && gemini_api_key.includes('*')) {
+      const config = await getConfig();
+      gemini_api_key = config.gemini_api_key;
+    }
+
+    if (!gemini_api_key) return res.status(400).json({ error: 'API key tidak boleh kosong.' });
 
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(gemini_api_key);
-    const model = genAI.getGenerativeModel({ model: gemini_model || 'gemini-3.1-flash-lite-preview' });
-    const result = await model.generateContent('Balas hanya dengan: OK');
-    const text = result.response.text();
+    const model = genAI.getGenerativeModel({ model: gemini_model || 'gemma-4' });
+    const result = await model.generateContent('Balas hanya dengan satu kata: OK');
+    const text = result.response.text().trim();
 
     res.json({ success: true, response: text });
   } catch (err) {
-    res.status(400).json({ error: `Test gagal: ${err.message}` });
+    console.error('Test Gemini Error:', err.message);
+    res.status(400).json({ error: `Gagal: ${err.message}` });
   }
 });
 
 // POST /api/config/test-telegram — Test Telegram token
 router.post('/test-telegram', async (req, res) => {
   try {
-    const { telegram_token } = req.body;
-    if (!telegram_token) return res.status(400).json({ error: 'Token diperlukan.' });
+    let { telegram_token } = req.body;
+
+    // Fallback ke database jika input adalah sensor (ada bintang)
+    if (telegram_token && telegram_token.includes('*')) {
+      const config = await getConfig();
+      telegram_token = config.telegram_token;
+    }
+
+    if (!telegram_token) return res.status(400).json({ error: 'Token tidak boleh kosong.' });
 
     const TelegramBot = require('node-telegram-bot-api');
     const testBot = new TelegramBot(telegram_token);
@@ -156,7 +172,8 @@ router.post('/test-telegram', async (req, res) => {
 
     res.json({ success: true, bot_name: me.first_name, bot_username: me.username });
   } catch (err) {
-    res.status(400).json({ error: `Test gagal: ${err.message}` });
+    console.error('Test Telegram Error:', err.message);
+    res.status(400).json({ error: `Gagal: ${err.message}` });
   }
 });
 

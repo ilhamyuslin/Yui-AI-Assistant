@@ -174,16 +174,7 @@ function registerHandlers(bot) {
       const history = await getHistory(userId);
       const categories = await getActiveCategories();
 
-      // Inject REAL-TIME date context so AI knows "Today" and "Yesterday"
-      // Inject REAL-TIME date context (WIB Timezone)
-      const now = new Date();
-      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Jakarta' };
-      const dateStr = now.toLocaleDateString('en-US', options);
-      const timeStr = now.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Jakarta' });
-
-      const dateContext = `\n\n[CONTEXT] Today's Date: ${dateStr}. Local Time (WIB): ${timeStr}. Use this for relative dates. Always provide transaction_date in ISO format (e.g., 2026-04-23T19:35:00+07:00). IMPORTANT: Telegram only supports single asterisk for bold (*text*). Do NOT use double asterisks (**text**).`;
-
-      let { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage + dateContext, history, categories);
+      let { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage, history, categories);
 
       // 0. Global Cleaner: Remove all asterisks to prevent messy Telegram formatting
       aiReply = aiReply.replace(/\*/g, '');

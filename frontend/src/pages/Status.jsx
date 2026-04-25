@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { botApi, configApi, api } from '@/lib/api'
+import { botApi, configApi } from '@/lib/api'
 import { toast } from 'sonner'
+import dayjs from 'dayjs'
 import {
   Activity,
-  Terminal,
   Power,
   RefreshCw,
   Cpu,
   Database,
-  User,
   Shield,
   Zap,
   CheckCircle2,
@@ -69,7 +68,7 @@ export default function Status() {
       setConfig(configRes.data)
       if (manual) toast.success('Status bot diperbarui')
     } catch {
-      setStatus({ state: 'error' })
+      setStatus({ status: 'error' })
       if (manual) toast.error('Gagal mengambil status bot')
     } finally {
       setLoading(false)
@@ -78,7 +77,7 @@ export default function Status() {
 
   useEffect(() => {
     fetchStatus()
-    const interval = setInterval(() => fetchStatus(false), 10000)
+    const interval = setInterval(() => fetchStatus(false), 30000) // Refresh every 30s
     return () => clearInterval(interval)
   }, [fetchStatus])
 
@@ -130,7 +129,6 @@ export default function Status() {
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white/70 backdrop-blur-xl border border-white/50 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-10 shadow-sm">
             <div className="flex flex-row items-center sm:items-start gap-6 sm:gap-10">
-              {/* Left Column: Icon + Status Label */}
               <div className="flex flex-col items-center gap-4 flex-shrink-0">
                 <div className="relative">
                   <div className={cn(
@@ -148,20 +146,17 @@ export default function Status() {
                   )} />
                 </div>
                 
-                {/* Status Label (Moved here) */}
                 <div className={cn("px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg flex items-center gap-2 shadow-sm border border-white/50", cfg.bg)}>
                   <div className={cn("w-1.5 h-1.5 rounded-full", cfg.dot)} />
                   <span className={cn("text-[0.55rem] sm:text-[0.65rem] font-black uppercase tracking-widest", cfg.text)}>{cfg.label}</span>
                 </div>
               </div>
 
-              {/* Right Column: Name + Engine + Uptime */}
               <div className="flex-1 text-left pt-1 sm:pt-4">
                 <h2 className="text-lg sm:text-3xl font-black text-slate-900 mb-2 sm:mb-4 tracking-tight">
                   {status?.bot_info?.first_name || 'Bot Instance'}
                 </h2>
                 
-                {/* AI Model Badge */}
                 <div className="flex items-center gap-2 mb-4 sm:mb-6">
                   <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200/60">
                     <Zap size={10} className="text-amber-500 fill-amber-500" />
@@ -185,12 +180,11 @@ export default function Status() {
             </div>
 
             {/* System Specs Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mt-8 sm:mt-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mt-8 sm:mt-12">
               {[
-                { label: 'Runtime', value: status?.node_version || 'N/A', icon: Terminal, color: 'text-blue-500' },
                 { label: 'Database', value: status?.db_status?.host || 'Supabase', icon: Database, color: status?.db_status?.state === 'connected' ? 'text-emerald-500' : 'text-rose-500' },
                 { label: 'RAM Usage', value: status?.memory || '0.0 MB', icon: Cpu, color: 'text-indigo-500' },
-                { label: 'API Latency', value: status?.api_latency || '0 ms', icon: Zap, color: 'text-amber-500' },
+                { label: 'Terakhir Aktif', value: (state === 'stopped' || !status?.last_seen) ? 'Offline' : dayjs(status.last_seen).format('HH:mm:ss'), icon: Clock, color: 'text-amber-500' },
               ].map((stat, i) => (
                 <div key={i} className="bg-slate-50/50 rounded-2xl p-4 sm:p-5 border border-slate-100/50 flex flex-row md:flex-col items-center md:items-start justify-between md:justify-start gap-4">
                   <div className="flex items-center gap-3">
@@ -231,9 +225,7 @@ export default function Status() {
             
             <div className="grid grid-cols-1 gap-3">
               {[
-                { action: 'start',   label: 'Start Bot',   desc: 'Nyalakan bot', icon: Play, color: 'bg-emerald-600 hover:bg-emerald-700', disabled: state === 'running' },
-                { action: 'stop',    label: 'Stop Bot',    desc: 'Matikan bot', icon: Square, color: 'bg-rose-600 hover:bg-rose-700', disabled: state === 'stopped' },
-                { action: 'restart', label: 'Restart',     desc: 'Muat ulang', icon: RotateCcw, color: 'bg-white/10 hover:bg-white/20', disabled: false },
+                { action: 'restart', label: 'Restart', desc: 'Muat ulang bot', icon: RefreshCw, color: 'bg-blue-600 hover:bg-blue-700', disabled: false },
               ].map((btn) => (
                 <button
                   key={btn.action}
