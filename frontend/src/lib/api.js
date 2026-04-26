@@ -428,3 +428,52 @@ export const investmentApi = {
     return { success: true }
   },
 }
+
+// ─── Goals ────────────────────────────────────────────────────
+export const goalApi = {
+  getAll: async () => {
+    const { data, error } = await supabase
+      .from('goals')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+    return { data: data || [] }
+  },
+
+  create: async (payload) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data, error } = await supabase
+      .from('goals')
+      .insert([{ ...payload, user_id: user.id }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data }
+  },
+
+  update: async (id, payload) => {
+    const { data, error } = await supabase
+      .from('goals')
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data }
+  },
+
+  delete: async (id) => {
+    const { error } = await supabase
+      .from('goals')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+    return { success: true }
+  },
+}

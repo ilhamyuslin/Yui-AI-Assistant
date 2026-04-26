@@ -20,6 +20,7 @@ import { configApi, statsApi } from '@/lib/api'
 import { Check, Tag, Calendar, X, PieChart, LayoutList, Plus } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import InvestmentSection from '@/components/dashboard/InvestmentSection'
+import GoalsSection from '@/components/dashboard/GoalsSection'
 
 const QUICK_FILTERS = [
   { key: 'today', label: 'Today', short: 'D' },
@@ -488,7 +489,10 @@ export default function Overview() {
           onDelete={removeInvestment}
         />
 
-        {/* ── 5. Section: Transaction Analysis ── */}
+        {/* ── 5. Section: Financial Goals ── */}
+        <GoalsSection />
+
+        {/* ── 6. Section: Transaction Analysis ── */}
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-8 mt-10 mb-2">
           {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
           <div className="flex flex-col gap-8 h-full">
