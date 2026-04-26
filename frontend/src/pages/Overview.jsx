@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react'
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ import ExpenseCategoryChart from '@/components/dashboard/ExpenseCategoryChart'
 import SmartAnalysisPanel from '@/components/dashboard/SmartAnalysisPanel'
 import TransactionTable from '@/components/dashboard/TransactionTable'
 import ConfirmModal from '@/components/dashboard/ConfirmModal'
+import BehaviorAnalysis from '@/components/dashboard/BehaviorAnalysis'
 const TransactionModal = lazy(() => import('@/components/dashboard/TransactionModal'))
 import { useAccounts } from '@/hooks/useAccounts'
 import { useInvestments } from '@/hooks/useInvestments'
@@ -59,14 +60,23 @@ export default function Overview() {
   const loading = statsLoading || txLoading || budgetLoading || accountLoading || stableStatsLoading
   const error = statsError || txError
 
-  const loadAll = useCallback(async (range, categories = []) => {
+  const loadAll = useCallback(async (range, categories = [], filterKey) => {
     const cycleRange = getQuickFilterRange('cycle', payDay)
 
+    // For components that should ONLY show today (Stats, Behavior, History)
+    let strictRange = range
+    if (filterKey === 'today') {
+      strictRange = {
+        startDate: dayjs().startOf('day').toISOString(),
+        endDate: dayjs().endOf('day').toISOString()
+      }
+    }
+
     await Promise.all([
-      fetchStats(range?.startDate, range?.endDate, categories),
-      fetchTrendStats(range?.startDate, range?.endDate),
+      fetchStats(strictRange?.startDate, strictRange?.endDate, categories),
+      fetchTrendStats(range?.startDate, range?.endDate), // Original range for Trend
       fetchStableStats(cycleRange.startDate, cycleRange.endDate),
-      fetchTx({ startDate: range?.startDate, endDate: range?.endDate, category: categories }),
+      fetchTx({ startDate: strictRange?.startDate, endDate: strictRange?.endDate, category: categories }),
       fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate }),
       refreshAccounts(),
       fetchInvestments(),
@@ -210,6 +220,41 @@ export default function Overview() {
   const categoryEntries = stats?.categories
     ? Object.entries(stats.categories).sort((a, b) => b[1] - a[1])
     : []
+
+  // Aggregate Behavior Data (Must, Need, Want, Saving)
+  const behaviorStats = useMemo(() => {
+    const totals = { Must: 0, Need: 0, Want: 0, Saving: 0 }
+    if (!stats?.categories) return totals
+
+    Object.entries(stats.categories).forEach(([cat, amount]) => {
+      const actualAmount = Math.abs(amount || 0)
+      if (actualAmount <= 0) return // Skip categories with no spending
+
+      // Find mapping from budgets
+      const budget = budgets.find(b => b.category === cat)
+      const group = budget?.behavior_group || 'Want' // Default to Want for 'wild' spending
+
+      if (totals[group] !== undefined) {
+        totals[group] += actualAmount
+      }
+    })
+    return totals
+  }, [stats, budgets])
+
+  // Calculate Budgeted Behavior Distribution (Target)
+  const behaviorBudgets = useMemo(() => {
+    const totals = { Must: 0, Need: 0, Want: 0, Saving: 0 }
+    if (!budgets) return totals
+
+    budgets.forEach(b => {
+      const group = b.behavior_group || 'Want'
+      const amount = parseFloat(b.amount) || 0
+      if (totals[group] !== undefined) {
+        totals[group] += amount
+      }
+    })
+    return totals
+  }, [budgets])
 
   const totalExpense = stats?.total_expense || 0
   const CATEGORY_COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#0ea5e9', '#6366f1', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6']
@@ -496,7 +541,7 @@ export default function Overview() {
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-8 mt-10 mb-2">
           {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
           <div className="flex flex-col gap-8 h-full">
-            <div className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit">
+            <div className="bg-gradient-to-br from-white to-amber-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit">
               <div className="flex items-center gap-4 mb-8">
                 <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
                   <PieChart className="w-5 h-5" />
@@ -514,6 +559,12 @@ export default function Overview() {
               </div>
             </div>
 
+            <BehaviorAnalysis
+              data={behaviorStats}
+              budgetData={behaviorBudgets}
+              loading={statsLoading}
+            />
+
             <SmartAnalysisPanel
               income={stableStats?.total_income || 0}
               totalExpense={stats?.total_expense || 0}
@@ -526,7 +577,7 @@ export default function Overview() {
           </div>
 
           {/* Right: Transaction Table (Condensed) */}
-          <div className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-7 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col">
+          <div className="bg-gradient-to-br from-white to-blue-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col xl:min-h-[600px] overflow-hidden">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
@@ -555,9 +606,9 @@ export default function Overview() {
           open={isBudgetModalOpen}
           onOpenChange={setIsBudgetModalOpen}
           budgets={budgets}
-          onSave={async (category, amount) => {
+          onSave={async (category, amount, behaviorGroup) => {
             try {
-              const success = await updateBudget(category, amount)
+              const success = await updateBudget(category, amount, behaviorGroup)
               if (success) {
                 const cycleRange = getQuickFilterRange('cycle', payDay)
                 fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })

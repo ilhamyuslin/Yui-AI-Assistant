@@ -68,7 +68,7 @@ export default function MetricCards({ stats, loading }) {
         return (
           <div
             key={card.type}
-            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2rem] p-4 sm:p-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden"
+            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden"
           >
             {/* Subtle Gradient Glow */}
             <div className={cn(

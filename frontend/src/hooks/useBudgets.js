@@ -26,10 +26,14 @@ export function useBudgets() {
     }
   }, [])
 
-  const update = useCallback(async (category, amount) => {
+  const update = useCallback(async (category, amount, behavior_group) => {
     setLoading(true)
     try {
-      await statsApi.updateBudget({ category, amount: parseFloat(amount) || 0 })
+      await statsApi.updateBudget({ 
+        category, 
+        amount: parseFloat(amount) || 0,
+        behavior_group: behavior_group || 'Want'
+      })
       return true
     } catch (err) {
       console.error('[useBudgets] Update error:', err)

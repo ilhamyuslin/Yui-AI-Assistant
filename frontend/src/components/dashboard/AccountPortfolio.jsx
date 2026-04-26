@@ -75,7 +75,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
       <div className="flex flex-col lg:flex-row gap-5 items-stretch h-auto lg:h-[180px]">
 
         {/* 1. STATIC TOTAL ASSET CARD - The Anchor */}
-        <div className="w-full lg:w-1/4 min-w-[240px] xl:w-[280px] bg-slate-900 rounded-[2rem] p-7 shadow-none lg:shadow-xl lg:shadow-emerald-950/20 relative flex flex-col justify-center border border-white/5 shrink-0 z-20">
+        <div className="w-full lg:w-1/4 min-w-[240px] xl:w-[280px] bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 shadow-none lg:shadow-xl lg:shadow-emerald-950/20 relative flex flex-col justify-center border border-white/5 shrink-0 z-20">
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 border border-emerald-500/20">
@@ -120,7 +120,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
             {!loading && accounts.map(acc => (
               <div
                 key={acc.id}
-                className="min-w-[240px] bg-white border border-slate-100 rounded-[2rem] p-6 flex flex-col justify-center shadow-sm hover:shadow-md transition-all group shrink-0 relative overflow-hidden"
+                className="min-w-[240px] bg-white border border-slate-100 rounded-[2.5rem] p-6 flex flex-col justify-center shadow-sm hover:shadow-md transition-all group shrink-0 relative overflow-hidden"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-10 h-10 bg-slate-50 flex items-center justify-center rounded-2xl border border-slate-100 group-hover:bg-emerald-50 group-hover:border-emerald-100 group-hover:text-emerald-500 transition-all text-slate-400">
@@ -160,7 +160,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
             {/* ADD SHORTHAND */}
             <button
               onClick={() => setModalOpen(true)}
-              className="min-w-[240px] bg-slate-50/40 border-2 border-dashed border-slate-200 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-3 text-slate-300 hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-500 transition-all group shrink-0"
+              className="min-w-[240px] bg-slate-50/40 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-6 flex flex-col items-center justify-center gap-3 text-slate-300 hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-500 transition-all group shrink-0"
             >
               <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Plus size={20} strokeWidth={3} />

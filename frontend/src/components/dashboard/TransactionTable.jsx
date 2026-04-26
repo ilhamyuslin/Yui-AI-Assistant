@@ -52,11 +52,21 @@ function getGroupLabel(date) {
 export default function TransactionTable({ transactions, loading, onUpdate, onDelete, categories }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [editingTx, setEditingTx] = useState(null)
-  const [itemsPerPage, setItemsPerPage] = useState(window.innerWidth < 1024 ? 4 : 8)
+  const [itemsPerPage, setItemsPerPage] = useState(() => {
+    if (window.innerWidth < 1024) return 4
+    if (window.innerWidth < 1536) return 12
+    return 15
+  })
 
   useEffect(() => {
     const handleResize = () => {
-      setItemsPerPage(window.innerWidth < 1024 ? 4 : 8)
+      if (window.innerWidth < 1024) {
+        setItemsPerPage(4)
+      } else if (window.innerWidth < 1536) {
+        setItemsPerPage(12)
+      } else {
+        setItemsPerPage(15)
+      }
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
@@ -120,7 +130,7 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
       onTouchEnd={handleTouchEnd}
       className="flex flex-col h-full"
     >
-      <div className="flex-1 flex flex-col gap-6 max-h-[450px] md:max-h-none overflow-y-auto pr-2 no-scrollbar">
+      <div className="flex-1 flex flex-col gap-6 overflow-y-auto pr-2 no-scrollbar">
         {Object.entries(groups).map(([label, items]) => (
           <div key={label} className="flex flex-col gap-3">
             <h3 className="text-[0.6rem] font-black text-slate-400 uppercase tracking-[0.2em] px-1">

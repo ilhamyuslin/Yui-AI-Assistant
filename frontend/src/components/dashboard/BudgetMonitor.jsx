@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -7,6 +7,16 @@ export default function BudgetMonitor({ budgets, loading, onOpenSettings }) {
   const itemsPerPage = 3
 
   const safeBudgets = [...(budgets || [])].sort((a, b) => (parseFloat(b.actual) || 0) - (parseFloat(a.actual) || 0))
+  
+  // Calculate Totals
+  const { totalBudget, totalActual } = useMemo(() => {
+    return (budgets || []).reduce((acc, b) => {
+      acc.totalBudget += (parseFloat(b.amount) || 0)
+      acc.totalActual += (parseFloat(b.actual) || 0)
+      return acc
+    }, { totalBudget: 0, totalActual: 0 })
+  }, [budgets])
+
   const totalPages = Math.ceil(safeBudgets.length / itemsPerPage)
   const startIndex = page * itemsPerPage
   const visibleItems = safeBudgets.slice(startIndex, startIndex + itemsPerPage)
@@ -35,7 +45,7 @@ export default function BudgetMonitor({ budgets, loading, onOpenSettings }) {
     <div 
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden"
+      className="bg-gradient-to-br from-white to-emerald-50/40 rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden"
     >
       
       {/* Header */}
@@ -52,6 +62,25 @@ export default function BudgetMonitor({ budgets, loading, onOpenSettings }) {
           Atur
         </button>
       </div>
+
+      {/* Total Summary Row (Added per request) */}
+      {!loading && budgets && budgets.length > 0 && (
+        <div className="mb-6 p-4 bg-slate-50/50 border border-slate-100 rounded-2xl flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Anggaran</p>
+            <p className="text-sm font-extrabold text-slate-800">Rp {totalBudget.toLocaleString('id-ID')}</p>
+          </div>
+          <div className="text-right space-y-1">
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Realisasi</p>
+            <p className={cn(
+              "text-sm font-extrabold",
+              totalActual > totalBudget ? "text-rose-500" : "text-emerald-600"
+            )}>
+              Rp {totalActual.toLocaleString('id-ID')}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* List */}
       <div className="flex-1 space-y-5">

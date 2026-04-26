@@ -1,5 +1,5 @@
 import { useState, Suspense, lazy } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
 import { Plus } from 'lucide-react'
@@ -80,6 +80,9 @@ export default function DashboardLayout() {
     await logout()
     navigate('/login')
   }
+
+  const location = useLocation()
+  const isDashboard = location.pathname === '/'
 
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-transparent selection:bg-emerald-500/10 selection:text-emerald-700">
@@ -336,18 +339,20 @@ export default function DashboardLayout() {
         </nav>
 
         {/* Global Floating Transaction Widget (Centered Glass Style) */}
-        <button
-          onClick={() => setIsTransactionModalOpen(true)}
-          className="fixed bottom-[90px] lg:bottom-[34px] left-1/2 -translate-x-1/2 z-[110] group flex items-center gap-2.5 p-1.5 pr-5 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:shadow-emerald-200/40 hover:scale-105 active:scale-95 transition-all duration-500"
-        >
-          <div className="w-9 h-9 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg group-hover:rotate-90 transition-transform duration-500">
-            <Plus size={18} strokeWidth={3} />
-          </div>
-          <div className="flex flex-col items-start leading-none">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-900">Add New</span>
-            <span className="text-[7px] font-bold uppercase tracking-wider text-slate-500/80">Transaction</span>
-          </div>
-        </button>
+        {isDashboard && (
+          <button
+            onClick={() => setIsTransactionModalOpen(true)}
+            className="fixed bottom-[90px] lg:bottom-[34px] left-1/2 -translate-x-1/2 z-[110] group flex items-center gap-2.5 p-1.5 pr-5 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:shadow-emerald-200/40 hover:scale-105 active:scale-95 transition-all duration-500"
+          >
+            <div className="w-9 h-9 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg group-hover:rotate-90 transition-transform duration-500">
+              <Plus size={18} strokeWidth={3} />
+            </div>
+            <div className="flex flex-col items-start leading-none">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-900">Add New</span>
+              <span className="text-[7px] font-bold uppercase tracking-wider text-slate-500/80">Transaction</span>
+            </div>
+          </button>
+        )}
 
         <Suspense fallback={null}>
           {isTransactionModalOpen && (
