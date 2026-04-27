@@ -1,6 +1,6 @@
 import { useState, memo } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Save, Plus, Minus, Tag, Calendar, Wallet, ReceiptText, ShoppingBag } from 'lucide-react'
+import { X, Save, Plus, Minus, Tag, Calendar, Wallet, ReceiptText, ShoppingBag, ArrowRightLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import dayjs from 'dayjs'
 
@@ -12,6 +12,7 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [accountId, setAccountId] = useState('')
+  const [destAccountId, setDestAccountId] = useState('')
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'))
 
   const handleAmountChange = (val) => {
@@ -29,9 +30,14 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
       return
     }
 
+    if (type === 'Transfer' && !destAccountId) {
+      return
+    }
+
     setLoading(true)
     try {
       const account = accounts.find(acc => acc.id === accountId)
+      const destAccount = accounts.find(acc => acc.id === destAccountId)
       
       const payload = {
         transaction_type: type,
@@ -39,6 +45,7 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
         item_name: itemName,
         category: category,
         source_of_fund: account?.name || 'Unknown',
+        destination_account: type === 'Transfer' ? (destAccount?.name || 'Unknown') : null,
         transaction_notes: description,
         transaction_date: dayjs(date).toISOString()
       }
@@ -51,6 +58,8 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
       setCategory('')
       setDescription('')
       setAccountId('')
+      setDestAccountId('')
+      setType('Expense')
     } catch (err) {
       console.error('Save error:', err)
     } finally {
@@ -62,15 +71,19 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 animate-in fade-in duration-300" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-7 z-50 outline-none animate-in zoom-in-95 fade-in duration-300 border border-white">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-7 z-50 outline-none animate-in zoom-in-95 fade-in duration-300 border border-white max-h-[90vh] overflow-y-auto no-scrollbar">
           
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className={cn(
                 "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
-                type === 'Expense' ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600"
+                type === 'Expense' ? "bg-rose-500/10 text-rose-600" : 
+                type === 'Income' ? "bg-emerald-500/10 text-emerald-600" :
+                "bg-indigo-500/10 text-indigo-600"
               )}>
-                {type === 'Expense' ? <Minus size={18} strokeWidth={3} /> : <Plus size={18} strokeWidth={3} />}
+                {type === 'Expense' ? <Minus size={18} strokeWidth={3} /> : 
+                 type === 'Income' ? <Plus size={18} strokeWidth={3} /> :
+                 <ArrowRightLeft size={18} strokeWidth={3} />}
               </div>
               <Dialog.Title className="text-lg font-black text-slate-800 tracking-tight">Transaksi Baru</Dialog.Title>
             </div>
@@ -114,6 +127,15 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
               >
                 Income
               </button>
+              <button
+                onClick={() => setType('Transfer')}
+                className={cn(
+                  "flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                  type === 'Transfer' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400"
+                )}
+              >
+                Transfer
+              </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -149,7 +171,9 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-3">Sumber</label>
+                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-3">
+                  {type === 'Transfer' ? 'Dari Akun' : 'Sumber'}
+                </label>
                 <div className="relative">
                   <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                   <select
@@ -164,6 +188,25 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
                   </select>
                 </div>
               </div>
+
+              {type === 'Transfer' && (
+                <div className="col-span-2 space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-3">Ke Akun</label>
+                  <div className="relative">
+                    <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" size={14} />
+                    <select
+                      value={destAccountId}
+                      onChange={(e) => setDestAccountId(e.target.value)}
+                      className="w-full h-11 pl-10 pr-4 bg-indigo-50/30 border border-indigo-100 rounded-2xl text-xs font-bold text-slate-700 appearance-none outline-none focus:bg-white transition-all"
+                    >
+                      <option value="">Pilih Tujuan</option>
+                      {accounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-3">Tanggal</label>
@@ -195,10 +238,10 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
 
             <button
               onClick={handleSave}
-              disabled={loading || !amount || !category || !accountId || !itemName}
+              disabled={loading || !amount || !category || !accountId || !itemName || (type === 'Transfer' && !destAccountId)}
               className={cn(
                 "w-full h-12 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98] mt-2",
-                "bg-emerald-600 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                "bg-slate-900 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
               )}
             >
               {loading ? (

@@ -57,6 +57,8 @@ export function useTransactions() {
   const remove = useCallback(async (id) => {
     await transactionApi.delete(id)
     setTransactions(prev => prev.filter(t => t.id !== id))
+    // Trigger global refresh for other components (like accounts balance)
+    window.dispatchEvent(new CustomEvent('transaction-saved'))
   }, [])
 
   const update = useCallback(async (id, data) => {
@@ -99,7 +101,7 @@ export function getQuickFilterRange(filter, payDay = 25) {
     case 'week':
       return {
         startDate: today.startOf('isoWeek').toISOString(),
-        endDate: today.endOf('day').toISOString()
+        endDate: today.endOf('isoWeek').toISOString()
       }
     case 'cycle': {
       let start, end

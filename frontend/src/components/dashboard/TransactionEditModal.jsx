@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, Calendar as CalIcon, Tag, CreditCard, ShoppingBag, ArrowUpCircle, ArrowDownCircle } from 'lucide-react'
+import { X, Calendar as CalIcon, Tag, CreditCard, ShoppingBag, ArrowUpCircle, ArrowDownCircle, ArrowRightLeft } from 'lucide-react'
 import dayjs from 'dayjs'
 import { cn } from '@/lib/utils'
 
-export default function TransactionEditModal({ open, onOpenChange, transaction, onSave, categories = [] }) {
+export default function TransactionEditModal({ open, onOpenChange, transaction, onSave, categories = [], accounts = [] }) {
   const [formData, setFormData] = useState({
     item_name: '',
     amount: '',
     category: '',
     transaction_type: 'Expense',
     transaction_date: '',
-    source_of_fund: ''
+    source_of_fund: '',
+    destination_account: ''
   })
   const [loading, setLoading] = useState(false)
 
@@ -23,7 +24,8 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
         category: transaction.category || '',
         transaction_type: transaction.transaction_type || 'Expense',
         transaction_date: dayjs(transaction.transaction_date).format('YYYY-MM-DD'),
-        source_of_fund: transaction.source_of_fund || ''
+        source_of_fund: transaction.source_of_fund || '',
+        destination_account: transaction.destination_account || ''
       })
     }
   }, [transaction])
@@ -48,7 +50,7 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 animate-in fade-in duration-300" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl shadow-emerald-950/20 p-8 z-50 outline-none animate-in zoom-in-95 fade-in duration-300 border border-white focus:outline-none">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl shadow-emerald-950/20 p-8 z-50 outline-none animate-in zoom-in-95 fade-in duration-300 border border-white focus:outline-none max-h-[90vh] overflow-y-auto no-scrollbar">
 
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
@@ -70,16 +72,14 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
             {/* Item Name */}
             <div className="space-y-2">
               <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Detail Item / Catatan</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  value={formData.item_name}
-                  onChange={e => setFormData(p => ({ ...p, item_name: e.target.value }))}
-                  className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
-                  placeholder="Contoh: Nasi Goreng"
-                />
-              </div>
+              <input
+                type="text"
+                required
+                value={formData.item_name}
+                onChange={e => setFormData(p => ({ ...p, item_name: e.target.value }))}
+                className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+                placeholder="Contoh: Nasi Goreng"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -99,15 +99,13 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
               {/* Date */}
               <div className="space-y-2">
                 <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Tanggal</label>
-                <div className="relative">
-                  <input
-                    type="date"
-                    required
-                    value={formData.transaction_date}
-                    onChange={e => setFormData(p => ({ ...p, transaction_date: e.target.value }))}
-                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
-                  />
-                </div>
+                <input
+                  type="date"
+                  required
+                  value={formData.transaction_date}
+                  onChange={e => setFormData(p => ({ ...p, transaction_date: e.target.value }))}
+                  className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+                />
               </div>
             </div>
 
@@ -131,16 +129,18 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
                 <div className="flex gap-2 p-1.5 bg-slate-50 rounded-2xl h-[52px]">
                   <button
                     type="button"
+                    title="Expense"
                     onClick={() => setFormData(p => ({ ...p, transaction_type: 'Expense' }))}
                     className={cn(
                       "flex-1 rounded-xl flex items-center justify-center transition-all",
-                      formData.transaction_type === 'Expense' ? "bg-white shadow-sm text-red-500" : "text-slate-400"
+                      formData.transaction_type === 'Expense' ? "bg-white shadow-sm text-rose-500" : "text-slate-400"
                     )}
                   >
                     <ArrowDownCircle className="w-4 h-4" />
                   </button>
                   <button
                     type="button"
+                    title="Income"
                     onClick={() => setFormData(p => ({ ...p, transaction_type: 'Income' }))}
                     className={cn(
                       "flex-1 rounded-xl flex items-center justify-center transition-all",
@@ -149,8 +149,56 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
                   >
                     <ArrowUpCircle className="w-4 h-4" />
                   </button>
+                  <button
+                    type="button"
+                    title="Transfer"
+                    onClick={() => setFormData(p => ({ ...p, transaction_type: 'Transfer' }))}
+                    className={cn(
+                      "flex-1 rounded-xl flex items-center justify-center transition-all",
+                      formData.transaction_type === 'Transfer' ? "bg-white shadow-sm text-indigo-500" : "text-slate-400"
+                    )}
+                  >
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
+            </div>
+
+            {/* Source and Destination Accounts */}
+            <div className={cn("grid gap-4", formData.transaction_type === 'Transfer' ? "grid-cols-2" : "grid-cols-1")}>
+              <div className="space-y-2">
+                <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">
+                  {formData.transaction_type === 'Transfer' ? 'Dari Akun' : 'Sumber Dana'}
+                </label>
+                <select
+                  required
+                  value={formData.source_of_fund}
+                  onChange={e => setFormData(p => ({ ...p, source_of_fund: e.target.value }))}
+                  className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none appearance-none cursor-pointer"
+                >
+                  <option value="">Pilih Akun</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.name}>{acc.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {formData.transaction_type === 'Transfer' && (
+                <div className="space-y-2 animate-in slide-in-from-right-2 duration-300">
+                  <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Ke Akun</label>
+                  <select
+                    required
+                    value={formData.destination_account}
+                    onChange={e => setFormData(p => ({ ...p, destination_account: e.target.value }))}
+                    className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none appearance-none cursor-pointer"
+                  >
+                    <option value="">Pilih Akun</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.name}>{acc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}

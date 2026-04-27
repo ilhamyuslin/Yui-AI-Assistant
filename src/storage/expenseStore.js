@@ -44,19 +44,26 @@ async function saveTransaction(data) {
       accountsNeeded.push(tx.destination_account);
     }
 
-    // Fetch account info
-    const { data: accounts, error: accError } = await supabase
+    // Fetch all user accounts to perform case-insensitive matching
+    const { data: allAccounts, error: accError } = await supabase
       .from('accounts')
       .select('name, balance')
-      .in('name', accountsNeeded);
+      .eq('user_id', process.env.DEFAULT_USER_ID);
 
     if (accError) throw accError;
 
-    const accountMap = {};
-    accounts.forEach(a => accountMap[a.name] = a);
+    // Helper to find account case-insensitively
+    const findAccount = (name) => {
+      if (!name) return null;
+      return allAccounts.find(a => a.name.toLowerCase().trim() === name.toLowerCase().trim());
+    };
 
-    const sourceAcc = accountMap[tx.source_of_fund];
-    const destAcc = tx.destination_account ? accountMap[tx.destination_account] : null;
+    const sourceAcc = findAccount(tx.source_of_fund);
+    const destAcc = tx.destination_account ? findAccount(tx.destination_account) : null;
+
+    // Map to actual DB names for the updates below
+    const sourceName = sourceAcc ? sourceAcc.name : tx.source_of_fund;
+    const destName = destAcc ? destAcc.name : tx.destination_account;
 
     if (!sourceAcc) {
       warning = `Akun asal "${tx.source_of_fund}" belum terdaftar.`;
@@ -68,14 +75,14 @@ async function saveTransaction(data) {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
+        }).eq('name', sourceName);
         balanceUpdated = true;
       }
       else if (tx.transaction_type === 'Expense') {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
+        }).eq('name', sourceName);
         balanceUpdated = true;
       }
       else if (tx.transaction_type === 'Transfer' && destAcc) {
@@ -83,12 +90,12 @@ async function saveTransaction(data) {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
+        }).eq('name', sourceName);
         // Atomic update for Destination
         await supabase.from('accounts').update({
           balance: parseFloat(destAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.destination_account);
+        }).eq('name', destName);
         balanceUpdated = true;
       }
     }
@@ -130,45 +137,57 @@ async function deleteTransaction(id) {
       accountsNeeded.push(tx.destination_account);
     }
 
-    const { data: accounts, error: accError } = await supabase
+    // Fetch all user accounts to perform case-insensitive matching
+    const { data: allAccounts, error: accError } = await supabase
       .from('accounts')
       .select('name, balance')
-      .in('name', accountsNeeded);
+      .eq('user_id', tx.user_id);
 
     if (accError) throw accError;
 
-    const accountMap = {};
-    accounts.forEach(a => accountMap[a.name] = a);
+    // Helper to find account case-insensitively
+    const findAccount = (name) => {
+      if (!name) return null;
+      return allAccounts.find(a => a.name.toLowerCase().trim() === name.toLowerCase().trim());
+    };
 
-    const sourceAcc = accountMap[tx.source_of_fund];
-    const destAcc = tx.destination_account ? accountMap[tx.destination_account] : null;
+    const sourceAcc = findAccount(tx.source_of_fund);
+    const destAcc = tx.destination_account ? findAccount(tx.destination_account) : null;
+
+    // Map to actual DB names for the updates below
+    const sourceName = sourceAcc ? sourceAcc.name : tx.source_of_fund;
+    const destName = destAcc ? destAcc.name : tx.destination_account;
 
     if (sourceAcc) {
       if (tx.transaction_type === 'Income') {
         // Reverse Income: Subtract from balance
-        await supabase.from('accounts').update({
+        const { error: updError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
+        }).eq('name', sourceName);
+        if (updError) throw updError;
       }
       else if (tx.transaction_type === 'Expense') {
         // Reverse Expense: Add back to balance
-        await supabase.from('accounts').update({
+        const { error: updError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
+        }).eq('name', sourceName);
+        if (updError) throw updError;
       }
       else if (tx.transaction_type === 'Transfer' && destAcc) {
         // Reverse Transfer: Source +, Destination -
-        await supabase.from('accounts').update({
+        const { error: updSrcError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.source_of_fund);
-        
-        await supabase.from('accounts').update({
+        }).eq('name', sourceName);
+        if (updSrcError) throw updSrcError;
+
+        const { error: updDestError } = await supabase.from('accounts').update({
           balance: parseFloat(destAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', tx.destination_account);
+        }).eq('name', destName);
+        if (updDestError) throw updDestError;
       }
     }
 

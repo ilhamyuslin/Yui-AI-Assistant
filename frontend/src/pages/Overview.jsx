@@ -187,7 +187,6 @@ export default function Overview() {
     try {
       if (type === 'transaction') {
         await remove(id)
-        fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
         toast.success('Transaksi dihapus')
       } else {
         const result = await deleteAccount(id)
@@ -596,6 +595,7 @@ export default function Overview() {
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
                 categories={allCategories}
+                accounts={accounts}
               />
             </div>
           </div>

@@ -170,6 +170,56 @@ export const transactionApi = {
   },
 
   delete: async (id) => {
+    // 1. Get transaction details for reversal
+    const { data: tx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !tx) throw new Error('Transaksi tidak ditemukan.')
+
+    const amount = Number(tx.amount)
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // 2. Fetch all accounts for case-insensitive matching
+    const { data: allAccounts } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('user_id', user?.id)
+
+    const findAccount = (name) => {
+      if (!name) return null;
+      return allAccounts?.find(a => a.name.toLowerCase().trim() === name.toLowerCase().trim());
+    }
+
+    const sourceAcc = findAccount(tx.source_of_fund)
+    const destAcc = findAccount(tx.destination_account)
+
+    // 3. Revert account balances
+    if (tx.transaction_type === 'Income' && sourceAcc) {
+      await supabase.from('accounts')
+        .update({ balance: Number(sourceAcc.balance) - amount, updated_at: new Date().toISOString() })
+        .eq('id', sourceAcc.id)
+    } 
+    else if (tx.transaction_type === 'Expense' && sourceAcc) {
+      await supabase.from('accounts')
+        .update({ balance: Number(sourceAcc.balance) + amount, updated_at: new Date().toISOString() })
+        .eq('id', sourceAcc.id)
+    }
+    else if (tx.transaction_type === 'Transfer' && sourceAcc && destAcc) {
+      // Revert Transfer: Source +, Destination -
+      await Promise.all([
+        supabase.from('accounts')
+          .update({ balance: Number(sourceAcc.balance) + amount, updated_at: new Date().toISOString() })
+          .eq('id', sourceAcc.id),
+        supabase.from('accounts')
+          .update({ balance: Number(destAcc.balance) - amount, updated_at: new Date().toISOString() })
+          .eq('id', destAcc.id)
+      ])
+    }
+
+    // 4. Delete the transaction record
     const { error } = await supabase
       .from('transactions')
       .delete()

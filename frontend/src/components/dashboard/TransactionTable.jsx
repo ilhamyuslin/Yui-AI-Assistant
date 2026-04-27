@@ -23,6 +23,7 @@ import TransactionEditModal from './TransactionEditModal'
 const TYPE_CONFIG = {
   Expense: { icon: ArrowDownLeft, color: 'text-rose-500', bg: 'bg-rose-50', sign: '−' },
   Income:  { icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-50', sign: '+' },
+  Transfer: { icon: ArrowUpRight, color: 'text-indigo-500', bg: 'bg-indigo-50', sign: '⇄' },
   Saving:  { icon: PiggyBank, color: 'text-blue-500', bg: 'bg-blue-50', sign: '+' },
 }
 
@@ -49,7 +50,7 @@ function getGroupLabel(date) {
   return d.format('DD MMMM YYYY')
 }
 
-export default function TransactionTable({ transactions, loading, onUpdate, onDelete, categories }) {
+export default function TransactionTable({ transactions, loading, onUpdate, onDelete, categories, accounts = [] }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [editingTx, setEditingTx] = useState(null)
   const [itemsPerPage, setItemsPerPage] = useState(() => {
@@ -224,6 +225,7 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
         transaction={editingTx}
         onSave={onUpdate}
         categories={categories}
+        accounts={accounts}
       />
     </div>
   )
