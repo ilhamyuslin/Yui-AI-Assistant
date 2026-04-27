@@ -12,7 +12,7 @@ const getExpenseSchema = (categories = []) => {
     functionDeclarations: [
       {
         name: "request_record_transaction",
-        description: "Minta untuk mencatat transaksi keuangan (pemasukan, pengeluaran, atau transfer). Panggil fungsi ini jika user ingin mencatat transaksi.",
+        description: "PANGGIL FUNGSI INI SEGERA setelah mendeteksi data transaksi (item, jumlah, dll). Fungsi ini akan memunculkan tombol konfirmasi sistem (Simpan/Batal). JANGAN mencoba mengonfirmasi lewat teks manual.",
         parameters: {
           type: "object",
           properties: {

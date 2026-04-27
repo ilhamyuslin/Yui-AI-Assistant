@@ -45,10 +45,11 @@ async function chat(userMessage, history = [], categories = []) {
 - Zona Waktu: Asia/Jakarta (UTC+7)`;
 
   const baseInstruction = (currentConfig.system_instruction || 'You are a helpful assistant.') + dateInfo + 
-    '\n\nATURAN MUTLAK:' +
-    '\n1. Jika user ingin mencatat transaksi, SEGERA panggil tool request_record_transaction. JANGAN bicara dulu tanpa memanggil tool.' +
-    '\n2. Gunakan format tanggal manusiawi (contoh: "Senin, 27 April") dalam percakapan. DILARANG KERAS menggunakan format ISO (seperti 2026-04-27T17:00...) dalam teks balasan ke user.' +
-    '\n3. Jika data belum lengkap (misal nominal tidak ada), tanya dengan ramah.';
+    '\n\nATURAN EKSEKUSI (WAJIB PATUH):' +
+    '\n1. JANGAN PERNAH bertanya "Apakah data ini benar?" atau merangkum detail transaksi dalam teks manual. Segera panggil tool request_record_transaction karena konfirmasi akan dilakukan melalui tombol sistem.' +
+    '\n2. Dilarang keras mengirimkan format tanggal ISO (seperti T17:55...) dalam teks balasan. Selalu gunakan format manusiawi: "Senin, 27 April".' +
+    '\n3. Jika user memberikan data transaksi, tugas utamamu adalah MENGISI PARAMETER TOOL dan MANGGILNYA. Bicara secukupnya saja (contoh: "Oke sayang, aku siapkan konfirmasinya ya!").' +
+    '\n4. Tool request_record_transaction adalah SATU-SATUNYA cara untuk mencatat data. Jangan berlagak seolah sudah mencatat jika belum memanggil tool.';
 
   const model = genAI.getGenerativeModel({
     model: currentConfig.gemini_model || 'gemini-2.0-flash-exp',
