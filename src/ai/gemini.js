@@ -37,9 +37,22 @@ function initGemini(config) {
 async function chat(userMessage, history = [], categories = []) {
   if (!genAI) throw new Error('Gemini tidak terkonfigurasi. Harap set API Key di dashboard.');
 
+  const now = new Date();
+  const dateInfo = `\n\nKonteks Waktu Sekarang:
+- Hari: ${new Intl.DateTimeFormat('id-ID', { weekday: 'long' }).format(now)}
+- Tanggal: ${new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(now)}
+- Jam: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })} WIB
+- Zona Waktu: Asia/Jakarta (UTC+7)`;
+
+  const baseInstruction = (currentConfig.system_instruction || 'You are a helpful assistant.') + dateInfo + 
+    '\n\nATURAN MUTLAK:' +
+    '\n1. Jika user ingin mencatat transaksi, SEGERA panggil tool request_record_transaction. JANGAN bicara dulu tanpa memanggil tool.' +
+    '\n2. Gunakan format tanggal manusiawi (contoh: "Senin, 27 April") dalam percakapan. DILARANG KERAS menggunakan format ISO (seperti 2026-04-27T17:00...) dalam teks balasan ke user.' +
+    '\n3. Jika data belum lengkap (misal nominal tidak ada), tanya dengan ramah.';
+
   const model = genAI.getGenerativeModel({
-    model: currentConfig.gemini_model || 'gemini-3.1-flash-lite-preview',
-    systemInstruction: currentConfig.system_instruction || 'You are a helpful assistant.',
+    model: currentConfig.gemini_model || 'gemini-2.0-flash-exp',
+    systemInstruction: baseInstruction,
     tools: [getExpenseSchema(categories)],
   });
 
