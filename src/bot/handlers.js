@@ -1,49 +1,26 @@
 /**
  * handlers.js
- * Telegram message handlers.
- * - Whitelist check (private bot)
- * - /start, /help, /clear commands
- * - General message → Gemini → response
- * - Tool/Function Calling handler (Expense tracking)
- * - Confirmation flow with inline buttons
+ * Core logic for processing Telegram messages and interactions.
+ * Handles AI chat, transaction confirmations, and tool execution.
  */
 
-const { chat, isReady } = require('../ai/gemini');
-const { getHistory, appendHistory, clearHistory } = require('../storage/historyStore');
-const { logMessage } = require('../storage/logger');
+const { chat } = require('../ai/gemini');
 const { saveTransaction } = require('../storage/expenseStore');
-const { getActiveCategories } = require('../services/transactionService');
+const { getHistory, appendHistory, clearHistory } = require('../storage/historyStore');
+const { getAccounts } = require('../storage/accountStore');
+const { getToolHandler } = require('../ai/tools/registry');
 
-// Active config reference
 let activeConfig = {};
-// Store for transactions awaiting user confirmation
-const pendingTransactions = new Map();
 
 /**
- * Utility to format ISO date to Indonesian readable string
+ * Update global config used by handlers (whitelist, etc).
  */
-function formatDateIndo(isoString) {
-  if (!isoString) return '-';
-  try {
-    const date = new Date(isoString);
-    return new Intl.DateTimeFormat('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'Asia/Jakarta'
-    }).format(date);
-  } catch (e) {
-    return isoString;
-  }
-}
-
 function setConfig(config) {
   activeConfig = config;
 }
 
 /**
- * Check if a user is whitelisted.
+ * Checks if a user is in the authorized whitelist.
  */
 function isWhitelisted(userId) {
   const whitelist = activeConfig.whitelisted_users || [];
@@ -97,152 +74,114 @@ function registerHandlers(bot) {
     const userId = callbackQuery.from.id;
     const [action, txId] = callbackQuery.data.split(':');
 
-    if (action === 'TX_CONFIRM') {
-      const pendingData = pendingTransactions.get(txId);
-      if (!pendingData) {
-        return bot.answerCallbackQuery(callbackQuery.id, { text: 'Data tidak ditemukan atau sudah kadaluarsa.', show_alert: true });
-      }
+    if (!isWhitelisted(userId)) return;
 
-      // 1. Save to DB
-      const result = await saveTransaction(pendingData);
+    if (action === 'confirm') {
+      const txData = global.pendingTransactions?.[userId];
+      if (!txData) return bot.sendMessage(msg.chat.id, '⚠️ Data transaksi sudah kedaluwarsa.');
 
+      const result = await saveTransaction(txData);
       if (result.success) {
-        // 2. Clear state immediately to prevent double processing
-        pendingTransactions.delete(txId);
-
-        // 3. Update UI
-        let successText = `✅ Berhasil Dicatat!\n\n` +
-          `💰 ${pendingData.item_name}\n` +
-          `💵 Rp ${Number(pendingData.amount).toLocaleString('id-ID')}\n` +
-          `📂 ${pendingData.category}\n` +
-          `💳 ${pendingData.source_of_fund}\n` +
-          `📅 ${formatDateIndo(result.data.transaction_date)}`;
-
-        if (pendingData.transaction_type === 'Transfer' && pendingData.destination_account) {
-          successText += ` ➡️ ${pendingData.destination_account}`;
-        }
-
-        if (result.warning) {
-          successText += `\n\n${result.warning}`;
-        }
-
-        try {
-          await bot.editMessageText(successText, {
-            chat_id: msg.chat.id,
-            message_id: msg.message_id,
-            parse_mode: 'Markdown'
-          });
-        } catch (err) {
-          if (err.message.includes('message is not modified')) {
-            // Ignore this error, it just means the message was already updated by another instance
-          } else {
-            console.error('[Handler] UI Update Error:', err.message);
-          }
-        }
+        await bot.editMessageText(`✅ *Berhasil disimpan!*\n\n💰 ${txData.item_name}\n💵 Rp ${txData.amount.toLocaleString('id-ID')}\n📂 ${txData.category}\n💳 ${txData.source_of_fund}`, {
+          chat_id: msg.chat.id,
+          message_id: msg.message_id,
+          parse_mode: 'Markdown'
+        });
+        delete global.pendingTransactions[userId];
+        await appendHistory(userId, 'user', 'Konfirmasi simpan.');
+        await appendHistory(userId, 'model', 'Berhasil disimpan!');
       } else {
         await bot.sendMessage(msg.chat.id, `❌ Gagal menyimpan: ${result.error}`);
       }
-    }
-    else if (action === 'TX_CANCEL') {
-      pendingTransactions.delete(txId);
-      await bot.editMessageText('❌ Pencatatan dibatalkan.', {
+    } else if (action === 'cancel') {
+      await bot.editMessageText('❌ Transaksi dibatalkan.', {
         chat_id: msg.chat.id,
         message_id: msg.message_id
       });
+      delete global.pendingTransactions?.[userId];
+      await appendHistory(userId, 'user', 'Batalkan transaksi.');
+      await appendHistory(userId, 'model', 'Transaksi dibatalkan.');
     }
-
-    bot.answerCallbackQuery(callbackQuery.id);
   });
 
-  // General text messages
+  // Main Message Handler (Natural Language Chat)
   bot.on('message', async (msg) => {
-    if (!msg.text || msg.text.startsWith('/')) return;
-
+    if (msg.text?.startsWith('/')) return; // Ignore commands
+    
     const userId = msg.from.id;
-    const username = msg.from.username;
-    const firstName = msg.from.first_name;
     const chatId = msg.chat.id;
-    const userMessage = msg.text;
+    const userText = msg.text;
 
-    if (!isWhitelisted(userId)) return bot.sendMessage(chatId, '⛔ Akses ditolak.');
-    if (!isReady()) return bot.sendMessage(chatId, '⚠️ AI belum siap.');
-
-    await bot.sendChatAction(chatId, 'typing');
-    logMessage({ userId, username, firstName, role: 'user', message: userMessage });
+    if (!isWhitelisted(userId)) return;
 
     try {
+      // 1. Get Conversation Context
       const history = await getHistory(userId);
-      const categories = await getActiveCategories();
+      const accResult = await getAccounts();
+      const categories = accResult.success ? [...new Set(accResult.data.accounts.map(a => a.name))] : [];
 
-      let { text: aiReply, tokensUsed, functionCalls } = await chat(userMessage, history, categories);
+      // 2. Process with AI
+      const aiResponse = await chat(userText, history, categories);
 
-      // 0. Global Cleaner: Remove all asterisks to prevent messy Telegram formatting
-      aiReply = aiReply.replace(/\*/g, '');
+      // 3. Handle Tool Calls (Extraction or Query)
+      if (aiResponse.functionCalls) {
+        for (const call of aiResponse.functionCalls) {
+          const handler = getToolHandler(call.name);
+          
+          if (call.name === 'request_record_transaction') {
+            // SPECIAL CASE: Expense extraction needs buttons
+            const txData = call.args;
+            global.pendingTransactions = global.pendingTransactions || {};
+            global.pendingTransactions[userId] = txData;
 
-      // 1. Handle Function Calls (Mental Model: AI Requesting Action)
-      if (functionCalls && functionCalls.length > 0) {
-        // If there's an AI verbal reply, send it first
-        if (aiReply && aiReply.trim().length > 0) {
-          await bot.sendMessage(chatId, aiReply, { parse_mode: 'Markdown' }).catch(() => {
-            return bot.sendMessage(chatId, aiReply);
-          });
-          // Small delay for UX
-          await new Promise(r => setTimeout(r, 500));
-        }
+            const confirmText = `🧐 *Konfirmasi Catatan*\n\n` +
+              `📝 Item: ${txData.item_name}\n` +
+              `💰 Jumlah: Rp ${txData.amount.toLocaleString('id-ID')}\n` +
+              `📂 Kategori: ${txData.category}\n` +
+              `💳 Sumber: ${txData.source_of_fund}\n` +
+              (txData.transaction_notes ? `🗒️ Memo: ${txData.transaction_notes}\n` : '') +
+              `📅 Tanggal: ${txData.transaction_date}\n\n` +
+              `Simpan sekarang?`;
 
-        for (let i = 0; i < functionCalls.length; i++) {
-          const call = functionCalls[i];
-          if (call.name !== 'request_record_transaction') continue;
-
-          const args = call.args;
-          const uniqueTxId = `${userId}_${Date.now()}_${i}`;
-          args.message_id = msg.message_id;
-
-          // Save to pending state using unique ID
-          pendingTransactions.set(uniqueTxId, args);
-
-          // Build summary for confirmation
-          const summary = `📝 Konfirmasi Pencatatan (${i + 1}/${functionCalls.length})\n\n` +
-            `🔹 Item: ${args.item_name}\n` +
-            `🔹 Nominal: Rp ${Number(args.amount).toLocaleString('id-ID')}\n` +
-            `🔹 Tipe: ${args.transaction_type}\n` +
-            `🔹 Kategori: ${args.category}\n` +
-            `🔹 Dari Akun: ${args.source_of_fund}\n` +
-            `${args.transaction_type === 'Transfer' && args.destination_account ? `🔹 Ke Akun: ${args.destination_account}\n` : ''}` +
-            `🔹 Tanggal: ${formatDateIndo(args.transaction_date || new Date().toISOString())}\n` +
-            `${args.transaction_notes ? `🔹 Catatan: ${args.transaction_notes}\n` : ''}\n` +
-            `Apakah data di atas sudah benar?`;
-
-          const opts = {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [[
-                { text: '✅ Simpan', callback_data: `TX_CONFIRM:${uniqueTxId}` },
-                { text: '❌ Batal', callback_data: `TX_CANCEL:${uniqueTxId}` }
-              ]]
+            await bot.sendMessage(chatId, confirmText, {
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [
+                  [
+                    { text: '✅ Simpan', callback_data: `confirm:${userId}` },
+                    { text: '❌ Batal', callback_data: `cancel:${userId}` }
+                  ]
+                ]
+              }
+            });
+            await appendHistory(userId, 'user', userText);
+            await appendHistory(userId, 'model', `[TOOL: request_record_transaction] ${JSON.stringify(txData)}`);
+          } 
+          else if (handler) {
+            // GENERIC TOOL HANDLER (Summary, Investment, Account, Budget)
+            const result = await handler(call.args, { userId });
+            
+            if (result.type === 'DATA') {
+              await bot.sendMessage(chatId, result.data, { parse_mode: 'Markdown' });
+              await appendHistory(userId, 'user', userText);
+              await appendHistory(userId, 'model', result.data);
+            } else if (result.type === 'ERROR') {
+              await bot.sendMessage(chatId, `⚠️ ${result.data}`);
             }
-          };
-
-          await bot.sendMessage(chatId, summary, opts);
+          }
         }
-        return; 
+      } else {
+        // Just a normal text response
+        await bot.sendMessage(chatId, aiResponse.text, { parse_mode: 'Markdown' });
+        await appendHistory(userId, 'user', userText);
+        await appendHistory(userId, 'model', aiResponse.text);
       }
-
-      // 2. Handle Normal Response (General Chat or Data Ask)
-      await appendHistory(userId, username, userMessage, aiReply);
-      logMessage({ userId, username, firstName, role: 'model', message: aiReply, tokensUsed });
-
-      await bot.sendMessage(chatId, aiReply, { parse_mode: 'Markdown' }).catch(() => {
-        return bot.sendMessage(chatId, aiReply);
-      });
 
     } catch (err) {
       console.error('[Handler] Error:', err.message);
-      await bot.sendMessage(chatId, `❌ Kesalahan: ${err.message}`);
+      await bot.sendMessage(chatId, '😵 Aduh, ada masalah teknis nih. Coba lagi ya!');
     }
   });
-
-  console.log('[Bot] Handlers registered with Tools support.');
 }
 
 module.exports = { registerHandlers, setConfig };

@@ -6,37 +6,71 @@
  */
 
 const expense = require('./expenseSchema');
-const analysis = require('./analysisSchema');
+const account = require('./accountSchema');
+const investment = require('./investmentSchema');
+const summary = require('./summarySchema');
+const budget = require('./budgetSchema');
 
 // Define all available tools here
+// Each tool must have:
+// - schema: The Gemini function declaration(s)
+// - handler: (Optional) Function to execute the logic
+// - capability: Description for the system prompt
 const TOOLS = [
   {
-    schema: expense.expenseSchema,
-    handler: expense.handle,
-    capability: "Mencatat dan mengelola transaksi keuangan (pengeluaran, pemasukan, transfer)."
+    schema: (categories) => expense.getExpenseSchema(categories),
+    handler: null, // Handled specifically in bot handlers for now (confirmation flow)
+    capability: "Mencatat transaksi baru (Pengeluaran, Pemasukan, Transfer)."
   },
   {
-    schema: analysis.analysisSchema,
-    handler: analysis.handle,
-    capability: "Melihat ringkasan keuangan, daftar transaksi, dan status budget mingguan/bulanan."
+    schema: account.accountSchema,
+    handler: account.handle,
+    capability: "Melihat saldo akun, daftar rekening, dan total aset saat ini."
+  },
+  {
+    schema: investment.investmentSchema,
+    handler: investment.handle,
+    capability: "Melihat portofolio investasi, status aset saham/crypto, dan profit/loss."
+  },
+  {
+    schema: summary.summarySchema,
+    handler: summary.handle,
+    capability: "Melihat statistik keuangan mingguan/bulanan dan riwayat transaksi terakhir."
+  },
+  {
+    schema: budget.budgetSchema,
+    handler: budget.handle,
+    capability: "Mengecek status budget/limit pengeluaran kategori (Makan, Jajan, dll)."
   }
 ];
 
 /**
  * Returns an array of function declarations for Gemini API.
  */
-function getGeminiTools() {
-  return TOOLS.map(t => t.schema);
+function getGeminiTools(categories = []) {
+  return TOOLS.map(t => {
+    if (typeof t.schema === 'function') {
+      return t.schema(categories).functionDeclarations;
+    }
+    return t.schema.functionDeclarations;
+  }).flat();
 }
 
 /**
  * Finds and returns a tool's handler function by function name.
  */
 function getToolHandler(functionName) {
-  const tool = TOOLS.find(t => 
-    t.schema.functionDeclarations.some(fd => fd.name === functionName)
-  );
-  return tool ? (args, ctx) => tool.handler(args, ctx, functionName) : null;
+  const tool = TOOLS.find(t => {
+    if (typeof t.schema === 'function') {
+      return t.schema([]).functionDeclarations.some(fd => fd.name === functionName);
+    }
+    return t.schema.functionDeclarations.some(fd => fd.name === functionName);
+  });
+  
+  if (tool && tool.handler) {
+    return (args, ctx) => tool.handler(args, ctx, functionName);
+  }
+  return null;
 }
 
 /**

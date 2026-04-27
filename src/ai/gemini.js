@@ -5,7 +5,7 @@
  */
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { getExpenseSchema } = require('./tools/expenseSchema');
+const { getGeminiTools, getCapabilitiesInstruction } = require('./tools/registry');
 
 let genAI = null;
 let currentModel = null;
@@ -44,23 +44,24 @@ async function chat(userMessage, history = [], categories = []) {
 - Jam: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false })} WIB
 - Zona Waktu: Asia/Jakarta (UTC+7)`;
 
-  const baseInstruction = (currentConfig.system_instruction || 'You are a helpful assistant.') + dateInfo + 
+  const baseInstruction = (currentConfig.system_instruction || 'You are a helpful assistant.') + dateInfo +
+    getCapabilitiesInstruction() +
     '\n\nATURAN EKSEKUSI (WAJIB PATUH):' +
-    '\n1. JANGAN PERNAH bertanya "Apakah data ini benar?" atau merangkum detail transaksi dalam teks manual. Segera panggil tool request_record_transaction karena konfirmasi akan dilakukan melalui tombol sistem.' +
-    '\n2. Dilarang keras mengirimkan format tanggal ISO (seperti T17:55...) dalam teks balasan. Selalu gunakan format manusiawi: "Senin, 27 April".' +
-    '\n3. Jika user memberikan data transaksi, tugas utamamu adalah MENGISI PARAMETER TOOL dan MANGGILNYA. Bicara secukupnya saja (contoh: "Oke sayang, aku siapkan konfirmasinya ya!").' +
-    '\n4. Tool request_record_transaction adalah SATU-SATUNYA cara untuk mencatat data. Jangan berlagak seolah sudah mencatat jika belum memanggil tool.';
+    '\n1. JANGAN PERNAH bertanya "Apakah data ini benar?" atau merangkum detail transaksi dalam teks manual jika itu adalah transaksi baru. Segera panggil tool request_record_transaction.' +
+    '\n2. Dilarang keras mengirimkan format tanggal ISO dalam teks balasan. Selalu gunakan format manusiawi.' +
+    '\n3. Jika memanggil tool query (seperti cek saldo/investasi), jangan bicara terlalu banyak sebelum memanggil tool. Panggil dulu, baru jelaskan hasilnya.' +
+    '\n4. Jika data dari database menunjukkan "0" atau "Kosong", sampaikan apa adanya dengan sopan.';
 
   const model = genAI.getGenerativeModel({
     model: currentConfig.gemini_model || 'gemini-2.0-flash-exp',
     systemInstruction: baseInstruction,
-    tools: [getExpenseSchema(categories)],
+    tools: [{ functionDeclarations: getGeminiTools(categories) }],
   });
 
   const chatSession = model.startChat({
     history,
     generationConfig: {
-      temperature: 0.9,
+      temperature: 0.5,
       topK: 40,
       topP: 0.95,
       maxOutputTokens: 2048,
