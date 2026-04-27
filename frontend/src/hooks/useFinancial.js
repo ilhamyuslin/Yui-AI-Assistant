@@ -1,3 +1,4 @@
+// v2.1 stable - final check
 import { useState, useCallback } from 'react'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
