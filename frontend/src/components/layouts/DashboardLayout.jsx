@@ -158,32 +158,51 @@ export default function DashboardLayout() {
         )}
       >
         {/* Header */}
-        <div className="px-6 pt-8 pb-6 relative flex-shrink-0">
-          <div className="flex items-center gap-4 overflow-hidden whitespace-nowrap">
-            {/* Logo icon */}
-            <div className="w-[42px] h-[42px] rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-[0_8px_16px_rgba(16,185,129,0.2)]"
-              style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
-              </svg>
+        <div className={cn(
+          "pt-8 pb-6 relative flex-shrink-0 transition-all duration-300",
+          collapsed ? "px-0" : "px-6"
+        )}>
+          <div className={cn(
+            "flex items-center transition-all duration-300",
+            collapsed ? "flex-col gap-6" : "justify-between"
+          )}>
+            <div className={cn(
+              "flex items-center transition-all duration-300",
+              collapsed ? "gap-0 mx-auto" : "gap-4"
+            )}>
+              {/* Logo icon */}
+              <div className="w-[42px] h-[42px] rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-[0_8px_16px_rgba(16,185,129,0.2)] transition-all duration-500"
+                style={{ 
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  transform: collapsed ? 'scale(0.85)' : 'scale(1)'
+                }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+                </svg>
+              </div>
+              {/* Logo text */}
+              <div className={cn('overflow-hidden transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>
+                <span className="block text-lg font-black text-slate-900 tracking-tight leading-tight whitespace-nowrap">Yui AI</span>
+                <span className="block text-[0.6rem] font-black text-emerald-600/60 uppercase tracking-[0.2em] mt-1 whitespace-nowrap">Financial Agent</span>
+              </div>
             </div>
-            {/* Logo text */}
-            <div className={cn('overflow-hidden transition-all duration-300', collapsed ? 'opacity-0 w-0' : 'opacity-100')}>
-              <span className="block text-lg font-black text-slate-900 tracking-tight leading-tight whitespace-nowrap">Yui AI</span>
-              <span className="block text-[0.6rem] font-black text-emerald-600/60 uppercase tracking-[0.2em] mt-1 whitespace-nowrap">Financial Agent</span>
-            </div>
-          </div>
 
-          {/* Collapse toggle (desktop) */}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="hidden lg:flex absolute -right-3 top-10 w-6 h-6 bg-white/80 backdrop-blur-md border border-white/50 shadow-sm rounded-full items-center justify-center text-slate-400 hover:text-emerald-500 hover:border-emerald-200 transition-all z-10"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-              className={cn('transition-transform duration-300', collapsed && 'rotate-180')}>
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
+            {/* Collapse toggle (desktop) */}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className={cn(
+                "hidden lg:flex items-center justify-center rounded-xl transition-all duration-300 group/toggle",
+                collapsed 
+                  ? "w-10 h-10 bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm" 
+                  : "w-8 h-8 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50"
+              )}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                className={cn('transition-transform duration-500', collapsed && 'rotate-180')}>
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}
@@ -204,28 +223,29 @@ export default function DashboardLayout() {
                   end={item.end}
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) => cn(
-                    'flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[0.85rem] font-bold transition-all duration-200 relative overflow-hidden whitespace-nowrap group',
+                    'flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[0.85rem] font-bold transition-all duration-300 relative overflow-hidden whitespace-nowrap group',
                     isActive
                       ? 'bg-emerald-50 text-emerald-600'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
-                    collapsed && 'justify-center px-0 w-[50px] mx-auto',
+                    collapsed && 'justify-center px-0 w-[48px] mx-auto',
                   )}
                 >
-                  <span className={cn(
-                    "w-5 h-5 flex-shrink-0 flex items-center justify-center transition-colors",
-                    "group-hover:text-emerald-600"
-                  )}>
-                    {item.icon}
-                  </span>
-                  <span className={cn('overflow-hidden transition-all duration-300', collapsed ? 'opacity-0 w-0' : 'opacity-100')}>
-                    {item.label}
-                  </span>
-                  {/* Active Indicator Bar */}
-                  {item.to === window.location.pathname && (
-                    <div className={cn(
-                      "absolute left-0 top-3 bottom-3 w-1 bg-emerald-500 rounded-r-full transition-all duration-300",
-                      collapsed && "hidden"
-                    )} />
+                  {({ isActive }) => (
+                    <>
+                      <span className={cn(
+                        "w-5 h-5 flex-shrink-0 flex items-center justify-center transition-all duration-300",
+                        "group-hover:text-emerald-600 group-hover:scale-110"
+                      )}>
+                        {item.icon}
+                      </span>
+                      <span className={cn('overflow-hidden transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>
+                        {item.label}
+                      </span>
+                      {/* Active Indicator Bar */}
+                      {isActive && !collapsed && (
+                        <div className="absolute left-0 top-3 bottom-3 w-1 bg-emerald-500 rounded-r-full transition-all duration-300" />
+                      )}
+                    </>
                   )}
                 </NavLink>
               ))}
@@ -234,34 +254,43 @@ export default function DashboardLayout() {
         </nav>
 
         {/* Footer */}
-        <div className="p-4 pb-8 border-t border-slate-100 flex-shrink-0 flex flex-col gap-2">
+        <div className={cn(
+          "p-4 pb-8 border-t border-slate-100 flex-shrink-0 flex flex-col gap-2 transition-all duration-300",
+          collapsed ? "items-center" : "items-stretch"
+        )}>
           {/* Bot status pill */}
           <div className={cn(
-            'flex items-center gap-3 px-4 py-3 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl overflow-hidden whitespace-nowrap',
-            collapsed && 'justify-center px-0 w-[50px] mx-auto'
+            'flex items-center transition-all duration-300',
+            collapsed 
+              ? 'justify-center w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shadow-emerald-500/5' 
+              : 'gap-3 px-4 py-3 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl overflow-hidden whitespace-nowrap'
           )}>
             <div className="relative flex-shrink-0">
               <div className="absolute inset-0 bg-emerald-500/20 blur-sm rounded-full animate-pulse" />
               <div className="relative w-2 h-2 rounded-full bg-emerald-500" />
             </div>
-            <span className={cn('text-[0.7rem] font-bold text-emerald-600/60 uppercase tracking-widest whitespace-nowrap overflow-hidden transition-all duration-300', collapsed && 'opacity-0 w-0')}>
-              System Online
+            <span className={cn('text-[0.7rem] font-black text-emerald-600 uppercase tracking-widest whitespace-nowrap overflow-hidden transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>
+              Online
             </span>
           </div>
+
           {/* Logout */}
           <button
             onClick={handleLogout}
             className={cn(
-              'flex items-center gap-3.5 w-full px-4 py-3 rounded-2xl text-[0.8rem] font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all text-left whitespace-nowrap overflow-hidden',
-              collapsed && 'justify-center px-0 w-[50px] mx-auto'
+              'flex items-center rounded-2xl text-[0.8rem] font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all text-left whitespace-nowrap overflow-hidden group',
+              collapsed 
+                ? 'justify-center w-10 h-10' 
+                : 'gap-3.5 w-full px-4 py-3'
             )}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
+              className="flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
               <line x1="21" y1="12" x2="9" y2="12" />
             </svg>
-            <span className={cn('transition-all duration-300', collapsed && 'opacity-0 w-0')}>Sign Out</span>
+            <span className={cn('transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>Sign Out</span>
           </button>
         </div>
       </aside>
