@@ -181,6 +181,15 @@ function registerHandlers(bot) {
 
       // 1. Handle Function Calls (Mental Model: AI Requesting Action)
       if (functionCalls && functionCalls.length > 0) {
+        // If there's an AI verbal reply, send it first
+        if (aiReply && aiReply.trim().length > 0) {
+          await bot.sendMessage(chatId, aiReply, { parse_mode: 'Markdown' }).catch(() => {
+            return bot.sendMessage(chatId, aiReply);
+          });
+          // Small delay for UX
+          await new Promise(r => setTimeout(r, 500));
+        }
+
         for (let i = 0; i < functionCalls.length; i++) {
           const call = functionCalls[i];
           if (call.name !== 'request_record_transaction') continue;
@@ -216,7 +225,7 @@ function registerHandlers(bot) {
 
           await bot.sendMessage(chatId, summary, opts);
         }
-        return; // End flow after sending all confirmations
+        return; 
       }
 
       // 2. Handle Normal Response (General Chat or Data Ask)
