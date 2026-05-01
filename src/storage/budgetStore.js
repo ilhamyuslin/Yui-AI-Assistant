@@ -107,4 +107,25 @@ async function getBudgets(p_startDate, p_endDate) {
   }
 }
 
-module.exports = { getBudgets };
+/**
+ * Gets a unique list of category names from the budgets table.
+ * Useful for providing AI with valid category options.
+ */
+async function getCategories() {
+  try {
+    const { data, error } = await supabase
+      .from('budgets')
+      .select('category');
+      
+    if (error) throw error;
+    
+    // Return unique categories
+    const categories = [...new Set(data.map(b => b.category))].filter(Boolean);
+    return { success: true, data: categories };
+  } catch (err) {
+    console.error('[BudgetStore] Error fetching categories:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { getBudgets, getCategories };

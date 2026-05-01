@@ -9,7 +9,7 @@ const analysisSchema = {
   functionDeclarations: [
     {
       name: "request_financial_summary",
-      description: "Ambil ringkasan statistik keuangan (Total Pemasukan, Pengeluaran, Saldo) dan rincian item pengeluaran spesifik sebagai referensi. Gunakan rincian item ini untuk menjelaskan kategori 'Lainnya' atau 'Umum' agar akurat.",
+      description: "Ambil ringkasan statistik keuangan (Total Pemasukan, Pengeluaran) dan rincian item pengeluaran spesifik. Jangan gunakan ini untuk mengecek saldo rekening bank spesifik.",
       parameters: {
         type: "object",
         properties: {
@@ -19,6 +19,14 @@ const analysisSchema = {
             description: "Rentang waktu: 'daily' (hari ini), 'weekly' (7 hari terakhir), 'monthly' (30 hari terakhir)."
           }
         }
+      }
+    },
+    {
+      name: "request_account_balances",
+      description: "Ambil daftar semua rekening bank / e-wallet beserta saldo saat ini (misalnya BNI, BCA, OVO, Gopay).",
+      parameters: {
+        type: "object",
+        properties: {}
       }
     },
     {
@@ -66,12 +74,17 @@ async function handle(args, ctx, functionName) {
     // RETURN HARDCODED FORMATTED REPORT TO PREVENT HALLUCINATION
     const reportText = await generateFinancialReport({ range: args.range || 'weekly' });
     return {
-      type: 'DATA',
+      type: 'FORMATTED_REPORT',
       data: reportText
     };
   } 
   
-  if (functionName === 'request_budget_report') {
+  if (functionName === 'request_account_balances') {
+    const { supabase } = require('../../storage/supabaseClient');
+    const { data: accounts } = await supabase.from('accounts').select('*');
+    data = accounts || [];
+  }
+  else if (functionName === 'request_budget_report') {
     data = await getBudgetReport(args.period || 'monthly');
   }
   else if (functionName === 'request_recent_transactions') {

@@ -6,9 +6,7 @@
  */
 
 const expense = require('./expenseSchema');
-const account = require('./accountSchema');
-const investment = require('./investmentSchema');
-const summary = require('./summarySchema');
+const analysis = require('./analysisSchema');
 const budget = require('./budgetSchema');
 
 // Define all available tools here
@@ -19,23 +17,13 @@ const budget = require('./budgetSchema');
 const TOOLS = [
   {
     schema: (categories) => expense.getExpenseSchema(categories),
-    handler: null, // Handled specifically in bot handlers for now (confirmation flow)
+    handler: null,
     capability: "Mencatat transaksi baru (Pengeluaran, Pemasukan, Transfer)."
   },
   {
-    schema: account.accountSchema,
-    handler: account.handle,
-    capability: "Melihat saldo akun, daftar rekening, dan total aset saat ini."
-  },
-  {
-    schema: investment.investmentSchema,
-    handler: investment.handle,
-    capability: "Melihat portofolio investasi, status aset saham/crypto, dan profit/loss."
-  },
-  {
-    schema: summary.summarySchema,
-    handler: summary.handle,
-    capability: "Melihat statistik keuangan mingguan/bulanan dan riwayat transaksi terakhir."
+    schema: analysis.analysisSchema,
+    handler: analysis.handle,
+    capability: "Melihat statistik keuangan, riwayat transaksi, dan laporan budget."
   },
   {
     schema: budget.budgetSchema,

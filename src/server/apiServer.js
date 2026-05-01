@@ -13,6 +13,7 @@ const os = require('os');
 const configRoutes = require('./routes/configRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const accountRoutes = require('./routes/accountRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const botManager = require('../bot/botManager');
 
 const app = express();
@@ -94,8 +95,29 @@ app.get('/auth/check', (req, res) => {
 });
 
 // ─── Auth Middleware for API ──────────────────────────────────
-function requireAuth(req, res, next) {
-  if (getAuthCookie(req) === DASHBOARD_PASSWORD) return next();
+async function requireAuth(req, res, next) {
+  // Method 2: Supabase JWT Bearer token (new Supabase auth system)
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const { supabase } = require('../storage/supabaseClient');
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (user && !error) {
+        req.user = user; // Attach user object to request
+        return next();
+      }
+    } catch (e) {
+      // Fall through
+    }
+  }
+
+  // Method 1: Legacy cookie auth (old password system fallback)
+  if (getAuthCookie(req) === DASHBOARD_PASSWORD) {
+    req.user = { id: 'legacy_web_user' };
+    return next();
+  }
+
   res.status(401).json({ error: 'Unauthorized. Silakan login terlebih dahulu.' });
 }
 
@@ -103,6 +125,7 @@ function requireAuth(req, res, next) {
 app.use('/api/config', requireAuth, configRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
 app.use('/api/accounts', requireAuth, accountRoutes);
+app.use('/api/chat', requireAuth, chatRoutes);
 
 // ─── Webhook Route (No Auth) ──────────────────────────────────
 app.post('/api/webhook/telegram', (req, res) => {

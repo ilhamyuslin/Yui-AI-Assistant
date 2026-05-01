@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layouts/DashboardLayout'
 import Overview from '@/pages/Overview'
 import Config from '@/pages/Config'
 import Status from '@/pages/Status'
+import Chat from '@/pages/Chat'
 
 function PrivateRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -33,6 +34,7 @@ export default function App() {
             <Route index element={<Overview />} />
             <Route path="config" element={<Config />} />
             <Route path="status" element={<Status />} />
+            <Route path="chat" element={<Chat />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

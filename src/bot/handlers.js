@@ -7,7 +7,7 @@
 const { chat } = require('../ai/gemini');
 const { saveTransaction } = require('../storage/expenseStore');
 const { getHistory, appendHistory, clearHistory } = require('../storage/historyStore');
-const { getAccounts } = require('../storage/accountStore');
+const { getCategories } = require('../storage/budgetStore');
 const { getToolHandler } = require('../ai/tools/registry');
 
 let activeConfig = {};
@@ -117,8 +117,8 @@ function registerHandlers(bot) {
     try {
       // 1. Get Conversation Context
       const history = await getHistory(userId);
-      const accResult = await getAccounts();
-      const categories = accResult.success ? [...new Set(accResult.data.accounts.map(a => a.name))] : [];
+      const catResult = await getCategories();
+      const categories = catResult.success ? catResult.data : [];
 
       // 2. Process with AI
       const aiResponse = await chat(userText, history, categories);

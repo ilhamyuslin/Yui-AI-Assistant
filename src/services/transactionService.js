@@ -8,29 +8,59 @@ const { supabase } = require('../storage/supabaseClient');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+const isoWeek = require('dayjs/plugin/isoWeek');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(isoWeek);
 dayjs.tz.setDefault('Asia/Jakarta');
 
 const { STANDARD_CATEGORIES } = require('../constants/categories');
 
 /**
+ * Helper to get the actual payday adjusted for weekends (last working day)
+ */
+function getActualPayday(date, payDay) {
+  let d = date.date(payDay);
+  if (d.date() !== payDay && payDay > 28) d = date.endOf('month');
+  const dayOfWeek = d.day();
+  if (dayOfWeek === 6) return d.subtract(1, 'day');
+  if (dayOfWeek === 0) return d.subtract(2, 'day');
+  return d;
+}
+
+/**
  * Common date range calculator.
  */
-function calculateDateRange(range, customStart, customEnd) {
+async function calculateDateRange(range, customStart, customEnd) {
   let start = customStart;
   let end = customEnd;
 
   if (range === 'daily') {
-    start = dayjs().tz().startOf('day').toISOString();
-    end = dayjs().tz().endOf('day').toISOString();
+    start = dayjs().tz().format('YYYY-MM-DD');
+    end = dayjs().tz().format('YYYY-MM-DD');
   } else if (range === 'weekly') {
-    start = dayjs().tz().subtract(6, 'day').startOf('day').toISOString();
-    end = dayjs().tz().endOf('day').toISOString();
+    start = dayjs().tz().startOf('isoWeek').format('YYYY-MM-DD');
+    end = dayjs().tz().endOf('isoWeek').format('YYYY-MM-DD');
   } else if (range === 'monthly') {
-    start = dayjs().tz().subtract(29, 'day').startOf('day').toISOString();
-    end = dayjs().tz().endOf('day').toISOString();
+    let payDay = 25;
+    try {
+      const { data } = await supabase.from('configs').select('value').eq('key', 'payday_cycle').single();
+      if (data && data.value) payDay = parseInt(data.value);
+    } catch (e) {
+      // ignore, default to 25
+    }
+
+    const today = dayjs().tz();
+    const currentPayday = getActualPayday(today, payDay);
+
+    if (today.isBefore(currentPayday, 'day')) {
+      start = getActualPayday(today.subtract(1, 'month'), payDay).format('YYYY-MM-DD');
+      end = currentPayday.subtract(1, 'day').format('YYYY-MM-DD');
+    } else {
+      start = currentPayday.format('YYYY-MM-DD');
+      end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day').format('YYYY-MM-DD');
+    }
   }
   
   return { start, end };
@@ -40,13 +70,13 @@ function calculateDateRange(range, customStart, customEnd) {
  * Fetch aggregated statistics like total income, expense, and category breakdown.
  */
 async function getSummaryStats({ range, startDate, endDate }) {
-  const { start, end } = calculateDateRange(range, startDate, endDate);
+  const { start, end } = await calculateDateRange(range, startDate, endDate);
 
   const { data: transactions, error } = await supabase
     .from('transactions')
     .select('*')
-    .gte('transaction_date', start || dayjs().startOf('month').toISOString())
-    .lte('transaction_date', end || dayjs().endOf('month').toISOString());
+    .gte('transaction_date', start || dayjs().tz().startOf('month').format('YYYY-MM-DD'))
+    .lte('transaction_date', end || dayjs().tz().endOf('month').format('YYYY-MM-DD'));
 
   if (error) throw error;
 
@@ -91,7 +121,7 @@ async function getSummaryStats({ range, startDate, endDate }) {
  * Fetch a list of individual transactions.
  */
 async function getTransactionList({ range, startDate, endDate, transaction_type, limit = 50 }) {
-  const { start, end } = calculateDateRange(range, startDate, endDate);
+  const { start, end } = await calculateDateRange(range, startDate, endDate);
 
   let query = supabase
     .from('transactions')
@@ -113,9 +143,9 @@ async function getTransactionList({ range, startDate, endDate, transaction_type,
  * Fetch budget status vs actual spending.
  */
 async function getBudgetReport(period) {
-  const targetPeriod = period || dayjs().format('YYYY-MM');
-  const startOfMonth = dayjs(targetPeriod).startOf('month').toISOString();
-  const endOfMonth = dayjs(targetPeriod).endOf('month').toISOString();
+  const targetPeriod = period || dayjs().tz().format('YYYY-MM');
+  const startOfMonth = dayjs(targetPeriod).tz().startOf('month').format('YYYY-MM-DD');
+  const endOfMonth = dayjs(targetPeriod).tz().endOf('month').format('YYYY-MM-DD');
 
   // 1. Get budgets
   const { data: budgetLimits, error: budgetError } = await supabase
@@ -153,7 +183,7 @@ async function getBudgetReport(period) {
  * This prevents AI from hallucinating numbers by doing calculations in JS/SQL instead.
  */
 async function generateFinancialReport({ range = 'weekly' }) {
-  const { start, end } = calculateDateRange(range);
+  const { start, end } = await calculateDateRange(range);
   
   // Use a more robust query for categories to match dashboard perfectly
   const { data: stats, error } = await supabase

@@ -7,8 +7,7 @@
 
 const { supabase } = require('./supabaseClient');
 
-// In-memory cache: userId -> history[]
-const cache = new Map();
+// Cache dihilangkan agar Serverless safe
 
 const MAX_HISTORY_TURNS = 20; // Keep last 20 turns (user+model pairs)
 
@@ -17,8 +16,6 @@ const MAX_HISTORY_TURNS = 20; // Keep last 20 turns (user+model pairs)
  * Returns array of { role: 'user'|'model', parts: [{ text }] }
  */
 async function getHistory(userId) {
-  if (cache.has(userId)) return cache.get(userId);
-
   const { data, error } = await supabase
     .from('ai_chat_histories')
     .select('history')
@@ -26,13 +23,10 @@ async function getHistory(userId) {
     .single();
 
   if (error || !data) {
-    cache.set(userId, []);
     return [];
   }
 
-  const history = data.history || [];
-  cache.set(userId, history);
-  return history;
+  return data.history || [];
 }
 
 /**
@@ -49,8 +43,6 @@ async function appendHistory(userId, username, userMessage, modelMessage) {
   // Trim to max turns (each turn = 2 entries)
   while (history.length > MAX_HISTORY_TURNS * 2) history.shift();
 
-  cache.set(userId, history);
-
   // Persist to Supabase
   await supabase
     .from('ai_chat_histories')
@@ -66,7 +58,6 @@ async function appendHistory(userId, username, userMessage, modelMessage) {
  * Clear conversation history for a user.
  */
 async function clearHistory(userId) {
-  cache.set(userId, []);
   await supabase
     .from('ai_chat_histories')
     .update({ history: [], updated_at: new Date().toISOString() })

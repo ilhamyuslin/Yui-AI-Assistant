@@ -50,6 +50,20 @@ const NAV_ITEMS = [
       },
     ],
   },
+  {
+    section: 'AI Chat',
+    items: [
+      {
+        to: '/chat',
+        label: 'AI Chat',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ),
+      },
+    ],
+  },
 ]
 
 export default function DashboardLayout() {
@@ -331,8 +345,8 @@ export default function DashboardLayout() {
           <div className="flex items-center justify-around">
             {(() => {
               const allItems = NAV_ITEMS.flatMap(section => section.items)
-              // Custom order for mobile: [Status, Dashboard, Config]
-              const mobileItems = [allItems[1], allItems[0], allItems[2]]
+              // Custom order for mobile: [Dashboard, Chat, Config]
+              const mobileItems = [allItems[0], allItems[3], allItems[2]]
 
               return mobileItems.map((item) => (
                 <NavLink
