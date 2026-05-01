@@ -5,6 +5,8 @@
 
 const { supabase } = require('./supabaseClient');
 
+const dayjs = require('dayjs');
+
 /**
  * Saves a validated transaction to Supabase and updates account balances.
  * @param {Object} data - The transaction data.
@@ -28,7 +30,7 @@ async function saveTransaction(data) {
         source_of_fund: data.source_of_fund,
         destination_account: data.destination_account || null,
         transaction_notes: data.transaction_notes || '',
-        transaction_date: data.transaction_date || new Date().toISOString()
+        transaction_date: data.transaction_date || dayjs().format('YYYY-MM-DD')
       }])
       .select();
 

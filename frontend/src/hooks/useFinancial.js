@@ -96,13 +96,13 @@ export function getQuickFilterRange(filter, payDay = 25) {
   switch (filter) {
     case 'today':
       return {
-        startDate: today.subtract(1, 'day').startOf('day').toISOString(),
-        endDate: today.add(1, 'day').endOf('day').toISOString()
+        startDate: today.subtract(1, 'day').format('YYYY-MM-DD'),
+        endDate: today.add(1, 'day').format('YYYY-MM-DD')
       }
     case 'week':
       return {
-        startDate: today.startOf('isoWeek').toISOString(),
-        endDate: today.endOf('isoWeek').toISOString()
+        startDate: today.startOf('isoWeek').format('YYYY-MM-DD'),
+        endDate: today.endOf('isoWeek').format('YYYY-MM-DD')
       }
     case 'cycle': {
       let start, end
@@ -111,15 +111,15 @@ export function getQuickFilterRange(filter, payDay = 25) {
 
       if (today.isBefore(currentPayday, 'day')) {
         start = getActualPayday(today.subtract(1, 'month'), payDay)
-        end = currentPayday.subtract(1, 'day').endOf('day')
+        end = currentPayday.subtract(1, 'day')
       } else {
         start = currentPayday
-        end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day').endOf('day')
+        end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day')
       }
 
       return {
-        startDate: start.startOf('day').toISOString(),
-        endDate: end.toISOString()
+        startDate: start.format('YYYY-MM-DD'),
+        endDate: end.format('YYYY-MM-DD')
       }
     }
     case 'all':

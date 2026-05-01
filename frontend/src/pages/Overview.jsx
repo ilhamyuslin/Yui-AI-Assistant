@@ -74,7 +74,7 @@ export default function Overview() {
 
     await Promise.all([
       fetchStats(strictRange?.startDate, strictRange?.endDate, categories),
-      fetchTrendStats(range?.startDate, range?.endDate), // Original range for Trend
+      fetchTrendStats(range?.startDate, range?.endDate, categories), // Original range for Trend
       fetchStableStats(cycleRange.startDate, cycleRange.endDate),
       fetchTx({ startDate: strictRange?.startDate, endDate: strictRange?.endDate, category: categories }),
       fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate }),
@@ -566,11 +566,11 @@ export default function Overview() {
 
             <SmartAnalysisPanel
               income={stableStats?.total_income || 0}
-              totalExpense={stats?.total_expense || 0}
+              totalExpense={stableStats?.total_expense || 0}
               payDay={payDay}
-              categories={stats?.categories || {}}
+              categories={stableStats?.categories || {}}
               budgets={budgets}
-              loading={statsLoading}
+              loading={stableStatsLoading}
               className="flex-1"
             />
           </div>

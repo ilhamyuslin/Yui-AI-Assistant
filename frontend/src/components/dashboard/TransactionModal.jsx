@@ -38,7 +38,7 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
     try {
       const account = accounts.find(acc => acc.id === accountId)
       const destAccount = accounts.find(acc => acc.id === destAccountId)
-      
+
       const payload = {
         transaction_type: type,
         amount: parseFloat(amount),
@@ -47,11 +47,11 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
         source_of_fund: account?.name || 'Unknown',
         destination_account: type === 'Transfer' ? (destAccount?.name || 'Unknown') : null,
         transaction_notes: description,
-        transaction_date: dayjs(date).toISOString()
+        transaction_date: date
       }
 
       await onSave(payload)
-      
+
       // Reset form on success
       setItemName('')
       setAmount('')
@@ -72,18 +72,18 @@ const TransactionModal = memo(({ open, onOpenChange, accounts = [], categories =
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 animate-in fade-in duration-300" />
         <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-md bg-white/80 backdrop-blur-2xl rounded-[2.5rem] shadow-2xl p-7 z-50 outline-none animate-in zoom-in-95 fade-in duration-300 border border-white max-h-[90vh] overflow-y-auto no-scrollbar">
-          
+
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className={cn(
                 "w-9 h-9 rounded-xl flex items-center justify-center transition-colors",
-                type === 'Expense' ? "bg-rose-500/10 text-rose-600" : 
-                type === 'Income' ? "bg-emerald-500/10 text-emerald-600" :
-                "bg-indigo-500/10 text-indigo-600"
+                type === 'Expense' ? "bg-rose-500/10 text-rose-600" :
+                  type === 'Income' ? "bg-emerald-500/10 text-emerald-600" :
+                    "bg-indigo-500/10 text-indigo-600"
               )}>
-                {type === 'Expense' ? <Minus size={18} strokeWidth={3} /> : 
-                 type === 'Income' ? <Plus size={18} strokeWidth={3} /> :
-                 <ArrowRightLeft size={18} strokeWidth={3} />}
+                {type === 'Expense' ? <Minus size={18} strokeWidth={3} /> :
+                  type === 'Income' ? <Plus size={18} strokeWidth={3} /> :
+                    <ArrowRightLeft size={18} strokeWidth={3} />}
               </div>
               <Dialog.Title className="text-lg font-black text-slate-800 tracking-tight">Transaksi Baru</Dialog.Title>
             </div>

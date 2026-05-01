@@ -60,13 +60,6 @@ export default function ExpenseCategoryChart({ categories, loading }) {
     setTouchStart(null)
   }
 
-  useEffect(() => {
-    if (totalPages <= 1) return
-    const timer = setInterval(() => {
-      setCurrentPage((prev) => (prev + 1) % totalPages)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [totalPages])
 
   const labels = activeCategories.map(([name]) => name)
   const dataValues = activeCategories.map(([_, value]) => value)
@@ -238,11 +231,12 @@ export default function ExpenseCategoryChart({ categories, loading }) {
         {totalPages > 1 && (
           <div className="flex items-center justify-center gap-1.5">
             {[...Array(totalPages)].map((_, i) => (
-              <div
+              <button
                 key={i}
+                onClick={() => setCurrentPage(i)}
                 className={cn(
-                  "h-1 rounded-full transition-all duration-500",
-                  currentPage === i ? "w-4 bg-slate-400" : "w-1 bg-slate-200"
+                  "h-1.5 rounded-full transition-all duration-500 outline-none",
+                  currentPage === i ? "w-6 bg-slate-400" : "w-1.5 bg-slate-200 hover:bg-slate-300"
                 )}
               />
             ))}

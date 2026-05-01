@@ -146,6 +146,7 @@ export const transactionApi = {
       .from('transactions')
       .select('*')
       .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (params.startDate) query = query.gte('transaction_date', params.startDate)
     if (params.endDate) query = query.lte('transaction_date', params.endDate)

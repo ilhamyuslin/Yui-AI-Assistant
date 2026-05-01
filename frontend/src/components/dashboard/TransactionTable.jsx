@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import dayjs from 'dayjs'
 import { cn } from '@/lib/utils'
-import { 
-  Edit2, 
-  Trash2, 
-  ChevronLeft, 
-  ChevronRight, 
-  Utensils, 
-  ShoppingBag, 
-  Car, 
-  Zap, 
-  Heart, 
-  Play, 
-  Gift, 
+import {
+  Edit2,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Utensils,
+  ShoppingBag,
+  Car,
+  Zap,
+  Heart,
+  Play,
+  Gift,
   MoreHorizontal,
   ArrowUpRight,
   ArrowDownLeft,
@@ -22,9 +22,9 @@ import TransactionEditModal from './TransactionEditModal'
 
 const TYPE_CONFIG = {
   Expense: { icon: ArrowDownLeft, color: 'text-rose-500', bg: 'bg-rose-50', sign: '−' },
-  Income:  { icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-50', sign: '+' },
+  Income: { icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-50', sign: '+' },
   Transfer: { icon: ArrowUpRight, color: 'text-indigo-500', bg: 'bg-indigo-50', sign: '⇄' },
-  Saving:  { icon: PiggyBank, color: 'text-blue-500', bg: 'bg-blue-50', sign: '+' },
+  Saving: { icon: PiggyBank, color: 'text-blue-500', bg: 'bg-blue-50', sign: '+' },
 }
 
 const CATEGORY_ICONS = {
@@ -43,11 +43,11 @@ function formatRupiah(v) {
 }
 
 function getGroupLabel(date) {
-  const now = dayjs()
-  const d = dayjs(date)
-  if (d.isSame(now, 'day')) return 'Hari Ini'
-  if (d.isSame(now.subtract(1, 'day'), 'day')) return 'Kemarin'
-  return d.format('DD MMMM YYYY')
+  const now = dayjs().format('YYYY-MM-DD')
+  const d = dayjs(date).format('YYYY-MM-DD')
+  if (d === now) return 'Hari Ini'
+  if (d === dayjs().subtract(1, 'day').format('YYYY-MM-DD')) return 'Kemarin'
+  return dayjs(date).format('DD MMMM YYYY')
 }
 
 export default function TransactionTable({ transactions, loading, onUpdate, onDelete, categories, accounts = [] }) {
@@ -81,10 +81,10 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
   const handleTouchEnd = (e) => {
     if (touchStart.x === null || touchStart.y === null) return
     const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
-    
+
     const deltaX = touchStart.x - touchEnd.x
     const deltaY = touchStart.y - touchEnd.y
-    
+
     // Only trigger if horizontal movement is greater than vertical movement
     if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
       if (deltaX > 0 && currentPage < totalPages) setCurrentPage(p => p + 1)
@@ -113,7 +113,11 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
     )
   }
 
-  const sortedTx = [...transactions].sort((a, b) => dayjs(b.transaction_date).diff(dayjs(a.transaction_date)))
+  const sortedTx = [...transactions].sort((a, b) => {
+    const dateDiff = dayjs(b.transaction_date).diff(dayjs(a.transaction_date))
+    if (dateDiff !== 0) return dateDiff
+    return dayjs(b.created_at).diff(dayjs(a.created_at))
+  })
   const totalPages = Math.ceil(sortedTx.length / itemsPerPage)
   const currentItems = sortedTx.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
@@ -126,7 +130,7 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
   }, {})
 
   return (
-    <div 
+    <div
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       className="flex flex-col h-full"
@@ -137,15 +141,15 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
             <h3 className="text-[0.6rem] font-black text-slate-400 uppercase tracking-[0.2em] px-1">
               {label}
             </h3>
-            
+
             <div className="flex flex-col gap-1">
               {items.map((tx) => {
                 const typeCfg = TYPE_CONFIG[tx.transaction_type] || TYPE_CONFIG.Expense
                 const Icon = CATEGORY_ICONS[tx.category] || MoreHorizontal
-                
+
                 return (
-                  <div 
-                    key={tx.id} 
+                  <div
+                    key={tx.id}
                     className="group flex items-center justify-between p-3 rounded-2xl transition-all duration-200 hover:bg-slate-50/80 active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-4 min-w-0 flex-1">
@@ -156,10 +160,10 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
 
                       {/* Info */}
                       <div className="flex-1 min-w-0 flex flex-col justify-center">
-                         <p className="text-[0.875rem] font-bold text-slate-800 leading-tight line-clamp-2">{tx.item_name || 'Tanpa Nama'}</p>
-                         <p className="text-[0.65rem] font-semibold text-slate-400 mt-1 truncate">
-                           {tx.category} • {tx.source_of_fund || 'Tunai'} • {dayjs(tx.transaction_date).format('HH:mm')}
-                         </p>
+                        <p className="text-[0.875rem] font-bold text-slate-800 leading-tight line-clamp-2">{tx.item_name || 'Tanpa Nama'}</p>
+                        <p className="text-[0.65rem] font-semibold text-slate-400 mt-1 truncate">
+                          {tx.category} • {tx.source_of_fund || 'Tunai'}
+                        </p>
                       </div>
                     </div>
 
@@ -198,7 +202,7 @@ export default function TransactionTable({ transactions, loading, onUpdate, onDe
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-50">
           <p className="text-[0.6rem] font-black text-slate-400 uppercase tracking-widest">
-             Halaman <span className="text-slate-900">{currentPage}</span> <span className="opacity-40">/</span> {totalPages}
+            Halaman <span className="text-slate-900">{currentPage}</span> <span className="opacity-40">/</span> {totalPages}
           </p>
           <div className="flex items-center gap-1">
             <button
