@@ -128,4 +128,59 @@ async function getCategories() {
   }
 }
 
-module.exports = { getBudgets, getCategories };
+/**
+ * Adds or updates a budget for a category.
+ * @param {Object} budgetData - { category, amount, behavior_group, id (optional) }
+ */
+async function upsertBudget(budgetData) {
+  try {
+    const payload = {
+      user_id: process.env.DEFAULT_USER_ID,
+      category: budgetData.category,
+      amount: parseFloat(budgetData.amount || 0),
+      behavior_group: budgetData.behavior_group || 'Want',
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('budgets')
+      .upsert(payload, { onConflict: 'category' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[BudgetStore] Error upserting budget:', error.message);
+      throw error;
+    }
+    return { success: true, data: data, message: 'Anggaran berhasil disimpan!' };
+  } catch (err) {
+    console.error('[BudgetStore] Error upserting budget:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Deletes a budget category.
+ */
+async function deleteBudget(category) {
+  try {
+    const { error } = await supabase
+      .from('budgets')
+      .delete()
+      .eq('user_id', process.env.DEFAULT_USER_ID)
+      .eq('category', category);
+
+    if (error) throw error;
+    return { success: true, message: 'Anggaran berhasil dihapus!' };
+  } catch (err) {
+    console.error('[BudgetStore] Error deleting budget:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+module.exports = { 
+  getBudgets, 
+  getCategories,
+  upsertBudget,
+  deleteBudget
+};

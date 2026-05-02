@@ -74,4 +74,34 @@ export const chatApi = {
    */
   getChatHistory: () =>
     apiFetch('/api/chat/history'),
+
+  /**
+   * Confirm and save a pending account upsert.
+   */
+  confirmAccount: (accountData) =>
+    apiFetch('/api/chat/confirm-account', {
+      method: 'POST',
+      body: JSON.stringify({ accountData }),
+    }),
+
+  /**
+   * Confirm and delete an account.
+   */
+  deleteAccount: (name, id) =>
+    apiFetch('/api/chat/delete-account', {
+      method: 'POST',
+      body: JSON.stringify({ name, id }),
+    }),
+    
+  confirmBudget: (budgetData) =>
+    apiFetch('/api/chat/confirm-budget', {
+      method: 'POST',
+      body: JSON.stringify({ budgetData }),
+    }),
+
+  deleteBudget: (category) =>
+    apiFetch('/api/chat/delete-budget', {
+      method: 'POST',
+      body: JSON.stringify({ category }),
+    }),
 }

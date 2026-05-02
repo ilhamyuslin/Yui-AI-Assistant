@@ -54,6 +54,24 @@ const analysisSchema = {
           }
         }
       }
+    },
+    {
+      name: "request_transactions_by_date",
+      description: "Ambil rincian transaksi untuk tanggal atau rentang tanggal spesifik.",
+      parameters: {
+        type: "object",
+        properties: {
+          startDate: {
+            type: "string",
+            description: "Tanggal awal (YYYY-MM-DD)."
+          },
+          endDate: {
+            type: "string",
+            description: "Tanggal akhir (YYYY-MM-DD). Jika hanya satu hari, samakan dengan startDate."
+          }
+        },
+        required: ["startDate"]
+      }
     }
   ]
 };
@@ -89,6 +107,12 @@ async function handle(args, ctx, functionName) {
   }
   else if (functionName === 'request_recent_transactions') {
     data = await getTransactionList({ limit: args.limit || 5 });
+  }
+  else if (functionName === 'request_transactions_by_date') {
+    data = await getTransactionList({ 
+      startDate: args.startDate, 
+      endDate: args.endDate || args.startDate 
+    });
   }
 
   return {

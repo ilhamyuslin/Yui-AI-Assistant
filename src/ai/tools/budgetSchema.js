@@ -19,6 +19,30 @@ const budgetSchema = {
           }
         }
       }
+    },
+    {
+      name: "request_manage_budget",
+      description: "Gunakan fungsi ini jika user ingin menambah, mengatur, atau mengedit limit anggaran (budget) untuk suatu kategori.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: { type: "string", description: "Nama kategori anggaran (misal: Makan, Transportasi, Jajan)." },
+          amount: { type: "number", description: "Jumlah limit anggaran dalam angka." },
+          behavior_group: { type: "string", enum: ["Need", "Want"], description: "Kelompok anggaran: 'Need' untuk kebutuhan pokok, 'Want' untuk keinginan/hiburan (opsional, default Want)." }
+        },
+        required: ["category", "amount"]
+      }
+    },
+    {
+      name: "request_delete_budget",
+      description: "Gunakan fungsi ini jika user ingin menghapus anggaran untuk kategori tertentu.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: { type: "string", description: "Nama kategori yang ingin dihapus anggarannya." }
+        },
+        required: ["category"]
+      }
     }
   ]
 };
@@ -26,8 +50,32 @@ const budgetSchema = {
 /**
  * Handler for budget queries.
  */
-async function handle(args, ctx) {
-  // Let budgetStore handle the cycle calculation automatically
+async function handle(args, ctx, functionName) {
+  const finalFunctionName = functionName || ctx.functionCall?.name || "get_budget_status";
+
+  if (finalFunctionName === 'request_manage_budget') {
+    return {
+      type: 'PENDING_BUDGET',
+      data: {
+        category: args.category,
+        amount: args.amount,
+        behavior_group: args.behavior_group || 'Want',
+        action: 'UPSERT'
+      }
+    };
+  }
+
+  if (functionName === 'request_delete_budget') {
+    return {
+      type: 'PENDING_BUDGET_DELETE',
+      data: {
+        category: args.category,
+        action: 'DELETE'
+      }
+    };
+  }
+
+  // Default: Get budget status
   const result = await getBudgets();
   
   if (result.success && result.data) {

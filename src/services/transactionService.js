@@ -43,24 +43,13 @@ async function calculateDateRange(range, customStart, customEnd) {
     start = dayjs().tz().startOf('isoWeek').format('YYYY-MM-DD');
     end = dayjs().tz().endOf('isoWeek').format('YYYY-MM-DD');
   } else if (range === 'monthly') {
-    let payDay = 25;
-    try {
-      const { data } = await supabase.from('configs').select('value').eq('key', 'payday_cycle').single();
-      if (data && data.value) payDay = parseInt(data.value);
-    } catch (e) {
-      // ignore, default to 25
-    }
-
-    const today = dayjs().tz();
-    const currentPayday = getActualPayday(today, payDay);
-
-    if (today.isBefore(currentPayday, 'day')) {
-      start = getActualPayday(today.subtract(1, 'month'), payDay).format('YYYY-MM-DD');
-      end = currentPayday.subtract(1, 'day').format('YYYY-MM-DD');
-    } else {
-      start = currentPayday.format('YYYY-MM-DD');
-      end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day').format('YYYY-MM-DD');
-    }
+    const { getConfig } = require('../storage/configStore');
+    const config = await getConfig();
+    const payDay = config.budget_cycle_day || 25;
+    
+    const cycle = await getCycleRange(payDay);
+    start = cycle.start;
+    end = cycle.end;
   }
   
   return { start, end };
@@ -140,12 +129,63 @@ async function getTransactionList({ range, startDate, endDate, transaction_type,
 }
 
 /**
+ * Helper to get the actual payday adjusted for weekends (last working day)
+ */
+function getActualPayday(date, payDay) {
+  let d = dayjs(date).date(payDay);
+  // Ensure we don't overflow the month (e.g. Feb 30)
+  if (d.date() !== payDay && payDay > 28) {
+    d = dayjs(date).endOf('month');
+  }
+
+  const dayOfWeek = d.day(); // 0 = Sunday, 6 = Saturday
+  if (dayOfWeek === 6) return d.subtract(1, 'day');
+  if (dayOfWeek === 0) return d.subtract(2, 'day');
+  return d;
+}
+
+/**
+ * Get current financial cycle range (Payday to Payday)
+ */
+async function getCycleRange(payDay = 25) {
+  const today = dayjs().tz();
+  const currentPayday = getActualPayday(today, payDay);
+
+  let start, end;
+  if (today.isBefore(currentPayday, 'day')) {
+    start = getActualPayday(today.subtract(1, 'month'), payDay);
+    end = currentPayday.subtract(1, 'day');
+  } else {
+    start = currentPayday;
+    end = getActualPayday(today.add(1, 'month'), payDay).subtract(1, 'day');
+  }
+
+  return {
+    start: start.startOf('day').format('YYYY-MM-DD'),
+    end: end.endOf('day').format('YYYY-MM-DD')
+  };
+}
+
+/**
  * Fetch budget status vs actual spending.
  */
 async function getBudgetReport(period) {
-  const targetPeriod = period || dayjs().tz().format('YYYY-MM');
-  const startOfMonth = dayjs(targetPeriod).tz().startOf('month').format('YYYY-MM-DD');
-  const endOfMonth = dayjs(targetPeriod).tz().endOf('month').format('YYYY-MM-DD');
+  const { getConfig } = require('../storage/configStore');
+  const config = await getConfig();
+  const payDay = config.payDay || 25;
+
+  let start, end;
+
+  if (period && period !== 'monthly') {
+    // Custom period (calendar month YYYY-MM)
+    start = dayjs(period).startOf('month').format('YYYY-MM-DD');
+    end = dayjs(period).endOf('month').format('YYYY-MM-DD');
+  } else {
+    // DEFAULT: Use Financial Cycle (Dashboard Style)
+    const cycle = await getCycleRange(payDay);
+    start = cycle.start;
+    end = cycle.end;
+  }
 
   // 1. Get budgets
   const { data: budgetLimits, error: budgetError } = await supabase
@@ -154,13 +194,13 @@ async function getBudgetReport(period) {
 
   if (budgetError) throw budgetError;
 
-  // 2. Get spending
+  // 2. Get spending within cycle
   const { data: actuals, error: actualError } = await supabase
     .from('transactions')
     .select('category, amount')
     .eq('transaction_type', 'Expense')
-    .gte('transaction_date', startOfMonth)
-    .lte('transaction_date', endOfMonth);
+    .gte('transaction_date', start)
+    .lte('transaction_date', end);
 
   if (actualError) throw actualError;
 

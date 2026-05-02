@@ -8,6 +8,7 @@
 const expense = require('./expenseSchema');
 const analysis = require('./analysisSchema');
 const budget = require('./budgetSchema');
+const account = require('./accountSchema');
 
 // Define all available tools here
 // Each tool must have:
@@ -23,12 +24,17 @@ const TOOLS = [
   {
     schema: analysis.analysisSchema,
     handler: analysis.handle,
-    capability: "Melihat statistik keuangan, riwayat transaksi, dan laporan budget."
+    capability: "Melihat statistik keuangan, riwayat transaksi (termasuk tanggal spesifik), dan laporan budget."
   },
   {
     schema: budget.budgetSchema,
     handler: budget.handle,
-    capability: "Mengecek status budget/limit pengeluaran kategori (Makan, Jajan, dll)."
+    capability: "Mengelola anggaran belanja (Tambah, Edit limit, Hapus budget kategori)."
+  },
+  {
+    schema: account.accountSchema,
+    handler: account.handle,
+    capability: "Mengelola daftar akun/rekening (Tambah, Edit saldo, Hapus akun)."
   }
 ];
 
@@ -56,7 +62,7 @@ function getToolHandler(functionName) {
   });
   
   if (tool && tool.handler) {
-    return (args, ctx) => tool.handler(args, ctx, functionName);
+    return (args, ctx) => tool.handler(args, { ...ctx, functionCall: { name: functionName } }, functionName);
   }
   return null;
 }

@@ -33,8 +33,8 @@ async function ensureGeminiReady() {
 router.get('/history', async (req, res) => {
   try {
     const userId = req.user?.id || 'web_user';
-    const history = await getHistory(userId);
-    
+    const { history, total_tokens } = await getHistory(userId);
+
     // Map internal history format to frontend format
     const formattedHistory = history.map(msg => ({
       id: Math.random().toString(36).substring(7),
@@ -43,7 +43,11 @@ router.get('/history', async (req, res) => {
       timestamp: new Date()
     }));
 
-    res.json({ success: true, data: formattedHistory });
+    res.json({ 
+      success: true, 
+      data: formattedHistory,
+      totalTokens: total_tokens || 0
+    });
   } catch (error) {
     console.error('[Chat API] History Error:', error);
     res.status(500).json({ error: error.message });
@@ -64,22 +68,22 @@ router.post('/', async (req, res) => {
 
     const userId = req.user?.id || 'web_user';
     const userName = req.user?.user_metadata?.first_name || 'web_user';
-    
+
     // Get conversation history
-    const rawHistory = await getHistory(userId);
+    const { history: rawHistory } = await getHistory(userId);
 
     // Format history for Gemini to prevent it from mimicking the [PENDING_TX] raw string
     const history = rawHistory.map(turn => {
-      if (turn.role === 'model' && turn.parts[0]?.text?.startsWith('[PENDING_TX]')) {
-        return {
-          role: 'model',
-          parts: [{
-            text: turn.parts[0].text.replace(
-              /\[PENDING_TX\](.*)/,
-              '[SISTEM: Draf transaksi telah ditampilkan ke layar UI. Jika user meminta ralat/revisi, KAMU WAJIB memanggil ulang fungsi request_record_transaction dengan data yang baru.]'
-            )
-          }]
-        };
+      const text = turn.parts[0]?.text || '';
+      if (turn.role === 'model' && text.includes('[PENDING_TX]')) {
+        // Ekstrak data untuk tetap memberi konteks pada AI tanpa memicu marker mentah
+        const cleanText = text.replace(/\[PENDING_TX\]\s*(\{.*\})/g, (match, json) => {
+          try {
+            const d = JSON.parse(json);
+            return `[DRAFT]: ${d.item_name || 'Transaksi'} senilai ${d.amount || 0} via ${d.source_of_fund || 'akun'}. (Menunggu konfirmasi)`;
+          } catch (e) { return 'Draf transaksi ditampilkan.'; }
+        });
+        return { role: 'model', parts: [{ text: cleanText }] };
       }
       return turn;
     });
@@ -94,63 +98,97 @@ router.post('/', async (req, res) => {
 
     // ── Handle Tool Calls ──────────────────────────────────────
     if (aiResponse.functionCalls && aiResponse.functionCalls.length > 0) {
-      // Cari apakah AI memanggil tool transaksi (bisa lebih dari satu kali)
-      const txCalls = aiResponse.functionCalls.filter(c => c.name === 'request_record_transaction');
+      const pendingDrafts = [];
+      let immediateResult = null;
 
-      if (txCalls.length > 0) {
-        const txDatas = txCalls.map(c => c.args);
+      for (const call of aiResponse.functionCalls) {
+        const functionName = call.name;
+        const args = call.args;
 
-        // Append to history with pending markers
-        await appendHistory(
-          userId,
-          userName,
-          message.trim(),
-          txDatas.map(t => `[PENDING_TX] ${JSON.stringify(t)}`).join('\n')
-        );
+        // 1. Tool Transaksi Langsung
+        if (functionName === 'request_record_transaction') {
+          pendingDrafts.push({ ...args, _itemType: 'transaction' });
+          continue;
+        }
 
+        // 2. Tool via Registry (Account, Budget, dll)
+        const handler = getToolHandler(functionName);
+        if (handler) {
+          try {
+            const ctx = { userId, userName, functionCall: { name: functionName } };
+            const result = await handler(args, ctx, functionName);
+            
+            if (result && result.type && result.type.startsWith('PENDING_')) {
+              let itemType = 'transaction';
+              if (result.type.includes('ACCOUNT')) itemType = result.type.includes('DELETE') ? 'account_delete' : 'account';
+              if (result.type.includes('BUDGET')) itemType = result.type.includes('DELETE') ? 'budget_delete' : 'budget';
+              
+              pendingDrafts.push({ ...result.data, _itemType: itemType });
+            } else if (result && (result.type === 'DATA' || result.type === 'FORMATTED_REPORT')) {
+              immediateResult = result;
+            }
+          } catch (err) {
+            console.error(`[ToolError] ${functionName}:`, err);
+          }
+        }
+      }
+
+      // Jika ada draf yang terkumpul
+      if (pendingDrafts.length > 0) {
+        const draftSummary = pendingDrafts.map(d => {
+          const type = (d._itemType || 'item').toUpperCase();
+          const name = d.item_name || d.name || d.category || 'Transaksi';
+          return `- [DRAF ${type}]: ${name}`;
+        }).join('\n');
+
+        // Simpan ke history dengan teks kosong agar AI tidak berhalusinasi menulis ulang draf di chat
+        const { total_tokens } = await appendHistory(userId, userName, message.trim(), "", aiResponse.tokensUsed);
+        
         return res.json({
-          type: 'PENDING_TX_MULTI',
-          data: txDatas,
+          type: 'PENDING_MULTI',
+          data: pendingDrafts,
+          text: null,
+          totalTokens: total_tokens
         });
       }
 
-      // GENERIC TOOL: Execute and return result as text
-      const call = aiResponse.functionCalls[0]; // For generic query tool process the first
-      const handler = getToolHandler(call.name);
-      if (handler) {
-        const result = await handler(call.args, { userId });
-
-        if (result.type === 'DATA') {
-          // KEMBALIKAN HASIL TOOL KE GEMINI AGAR BISA DIRANGKUM
-          // Karena kita tidak menyimpan session Gemini secara stateful di request ini,
-          // kita akan memanggil `chat` sekali lagi dengan menambahkan functionCall dan functionResponse ke history.
-          
+      // Jika tool mengembalikan hasil data langsung (seperti cek laporan)
+      if (immediateResult) {
+        if (immediateResult.type === 'DATA') {
           const extendedHistory = [
             ...history,
             { role: 'user', parts: [{ text: message.trim() }] },
-            { role: 'model', parts: [{ functionCall: { name: call.name, args: call.args } }] },
-            { role: 'function', parts: [{ functionResponse: { name: call.name, response: { data: result.data } } }] }
+            { role: 'model', parts: [{ functionCall: { name: aiResponse.functionCalls[0].name, args: aiResponse.functionCalls[0].args } }] },
+            { role: 'function', parts: [{ functionResponse: { name: aiResponse.functionCalls[0].name, response: { data: immediateResult.data } } }] }
           ];
-          
-          // Minta Gemini membaca hasil tool dan memberikan jawaban akhir
           const finalAiResponse = await chat("Tolong rangkum hasil data di atas sesuai pertanyaanku sebelumnya secara natural dan singkat.", extendedHistory, categories);
-          
-          await appendHistory(userId, userName, message.trim(), finalAiResponse.text);
-          return res.json({ type: 'TEXT', text: finalAiResponse.text });
-          
-        } else if (result.type === 'FORMATTED_REPORT') {
-          // Laporan langsung dicetak ke layar tanpa diproses ulang oleh AI untuk mencegah rusaknya format
-          await appendHistory(userId, userName, message.trim(), result.data);
-          return res.json({ type: 'TOOL_RESULT', text: result.data });
-        } else if (result.type === 'ERROR') {
-          return res.json({ type: 'TEXT', text: `⚠️ ${result.data}` });
+          const { total_tokens } = await appendHistory(userId, userName, message.trim(), finalAiResponse.text, finalAiResponse.tokensUsed);
+          return res.json({ 
+            type: 'TEXT', 
+            text: finalAiResponse.text,
+            totalTokens: total_tokens
+          });
+        }
+
+        if (immediateResult.type === 'FORMATTED_REPORT') {
+          const { total_tokens } = await appendHistory(userId, userName, message.trim(), immediateResult.data, aiResponse.tokensUsed);
+          return res.json({ 
+            type: 'TOOL_RESULT', 
+            text: immediateResult.data,
+            totalTokens: total_tokens
+          });
         }
       }
     }
 
     // ── Normal text response ───────────────────────────────────
-    await appendHistory(userId, userName, message.trim(), aiResponse.text);
-    return res.json({ type: 'TEXT', text: aiResponse.text });
+    const cleanText = aiResponse.text.replace(/\[SISTEM:.*\]/g, '').replace(/\[PENDING_TX\].*/g, '').trim();
+    const { total_tokens } = await appendHistory(userId, userName, message.trim(), cleanText || 'Ok, draf transaksi sudah disiapkan.', aiResponse.tokensUsed);
+    return res.json({ 
+      type: 'TEXT', 
+      text: cleanText || 'Ok, draf transaksi sudah disiapkan.',
+      totalTokens: total_tokens
+    });
 
   } catch (err) {
     console.error('[ChatRoute] Error:', err.message);
@@ -200,16 +238,99 @@ router.post('/cancel', async (req, res) => {
   }
 });
 
+// ─── POST /api/chat/confirm-account ──────────────────────────
+router.post('/confirm-account', async (req, res) => {
+  const { accountData } = req.body;
+  const { upsertAccount } = require('../../storage/accountStore');
+
+  if (!accountData) return res.status(400).json({ error: 'Data akun tidak ditemukan.' });
+
+  try {
+    const result = await upsertAccount(accountData);
+    const userId = req.user?.id || 'web_user';
+    const userName = req.user?.user_metadata?.first_name || 'web_user';
+
+    if (result.success) {
+      const confirmMsg = `✅ Akun ${accountData.name} berhasil disimpan dengan saldo Rp ${Number(accountData.balance || 0).toLocaleString('id-ID')}!`;
+      await appendHistory(userId, userName, 'Konfirmasi simpan akun.', confirmMsg);
+      return res.json({ success: true, message: confirmMsg });
+    } else {
+      return res.status(500).json({ error: result.error });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/chat/delete-account ───────────────────────────
+router.post('/delete-account', async (req, res) => {
+  const { name, id } = req.body;
+  const { deleteAccount } = require('../../storage/accountStore');
+
+  try {
+    const result = await deleteAccount({ id, name });
+    const userId = req.user?.id || 'web_user';
+    const userName = req.user?.user_metadata?.first_name || 'web_user';
+
+    if (result.success) {
+      const confirmMsg = `🗑️ Akun ${name} telah dihapus dari sistem.`;
+      await appendHistory(userId, userName, 'Konfirmasi hapus akun.', confirmMsg);
+      return res.json({ success: true, message: confirmMsg });
+    } else {
+      return res.status(500).json({ error: result.error });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/chat/clear ─────────────────────────────────────
-// Clears the entire conversation history for the web user.
 router.post('/clear', async (req, res) => {
   try {
     const userId = req.user?.id || 'web_user';
+    const { clearHistory } = require('../../storage/historyStore');
     await clearHistory(userId);
     return res.json({ success: true });
   } catch (err) {
     console.error('[ChatRoute/clear] Error:', err.message);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Budget Confirmation ──────────────────────────────────────
+router.post('/confirm-budget', async (req, res) => {
+  const { budgetData } = req.body;
+  const { upsertBudget } = require('../../storage/budgetStore');
+
+  if (!budgetData) return res.status(400).json({ error: 'Data anggaran tidak ditemukan.' });
+
+  try {
+    const result = await upsertBudget(budgetData);
+    if (result.success) {
+      res.json({ success: true, message: result.message, data: result.data });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/delete-budget', async (req, res) => {
+  const { category } = req.body;
+  const { deleteBudget } = require('../../storage/budgetStore');
+
+  if (!category) return res.status(400).json({ error: 'Kategori anggaran wajib diisi.' });
+
+  try {
+    const result = await deleteBudget(category);
+    if (result.success) {
+      res.json({ success: true, message: result.message });
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

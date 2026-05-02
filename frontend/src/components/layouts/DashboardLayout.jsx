@@ -96,63 +96,21 @@ export default function DashboardLayout() {
   }
 
   const location = useLocation()
-  const isDashboard = location.pathname === '/'
+  const isDashboard = location.pathname === '/' || location.pathname === '/dashboard'
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden bg-transparent selection:bg-emerald-500/10 selection:text-emerald-700">
+    <div className="fixed inset-0 overflow-hidden bg-[#fafafa] flex flex-col lg:flex-row">
 
       {/* ── Premium Light Background ── */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        {/* Subtle Gradient Base - More vibrant to avoid 'stark white' look */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50/50 to-emerald-50/50" />
-
-        {/* Soft Ambient Glows */}
         <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-emerald-200/10 blur-[120px] animate-pulse" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-blue-200/10 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
-
-        {/* Modern Grid overlay */}
         <div className="absolute inset-0 opacity-[0.4]"
           style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, #e2e8f0 1px, transparent 0)`,
             backgroundSize: '32px 32px'
           }} />
-
-        {/* Futuristic AI HUD Elements */}
-        <div className="absolute top-10 right-10 text-emerald-900/[0.04] font-mono text-sm tracking-[0.5em] select-none pointer-events-none">
-          SYS.YUI.AI // V.3.0.1 // ACTIVE
-        </div>
-        <div className="absolute bottom-10 left-10 text-emerald-900/[0.04] font-mono text-xs tracking-widest select-none pointer-events-none rotate-[-90deg] origin-bottom-left">
-          NEURAL_ENGINE: OPTIMIZED
-        </div>
-        <div className="absolute top-1/2 left-10 text-emerald-900/[0.04] font-mono text-xs tracking-[0.2em] select-none pointer-events-none rotate-[-90deg] origin-bottom-left">
-          DATA_STREAM_01
-        </div>
-        <div className="absolute bottom-10 right-10 text-emerald-900/[0.03] font-mono text-[8rem] font-black tracking-tighter select-none pointer-events-none leading-none">
-          01
-        </div>
-        <div className="absolute top-1/4 right-1/4 w-[400px] h-[400px] border border-emerald-900/[0.02] rounded-full select-none pointer-events-none flex items-center justify-center">
-          <div className="w-[300px] h-[300px] border border-emerald-900/[0.02] rounded-full border-dashed"></div>
-        </div>
-
-        {/* Additional HUD Details */}
-        <div className="absolute top-20 left-20 text-emerald-900/[0.06] font-mono text-2xl select-none pointer-events-none leading-none">+</div>
-        <div className="absolute bottom-20 right-20 text-emerald-900/[0.06] font-mono text-2xl select-none pointer-events-none leading-none">+</div>
-
-        <div className="absolute top-1/3 right-12 text-emerald-900/[0.03] font-mono text-[0.6rem] tracking-[0.2em] select-none pointer-events-none rotate-90 origin-top-right whitespace-nowrap">
-          01011001 01010101 01001001 // SYNC
-        </div>
-
-        <div className="absolute bottom-32 left-1/3 w-[250px] h-[1px] bg-emerald-900/[0.05] select-none pointer-events-none flex justify-between">
-          <div className="w-[1px] h-2 bg-emerald-900/[0.05] -mt-[0.5px]"></div>
-          <div className="w-[1px] h-2 bg-emerald-900/[0.05] -mt-[0.5px]"></div>
-          <div className="w-[1px] h-2 bg-emerald-900/[0.05] -mt-[0.5px]"></div>
-          <div className="w-[1px] h-2 bg-emerald-900/[0.05] -mt-[0.5px]"></div>
-          <div className="w-[1px] h-3 bg-emerald-900/[0.05] -mt-[1px]"></div>
-        </div>
-
-        <div className="absolute top-40 left-32 text-emerald-900/[0.03] font-mono text-[3rem] font-bold select-none pointer-events-none leading-none tracking-tighter">
-          X-99
-        </div>
       </div>
 
       {/* ── Mobile Overlay ── */}
@@ -184,9 +142,8 @@ export default function DashboardLayout() {
               "flex items-center transition-all duration-300",
               collapsed ? "gap-0 mx-auto" : "gap-4"
             )}>
-              {/* Logo icon */}
               <div className="w-[42px] h-[42px] rounded-2xl flex items-center justify-center text-white flex-shrink-0 shadow-[0_8px_16px_rgba(16,185,129,0.2)] transition-all duration-500"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                   transform: collapsed ? 'scale(0.85)' : 'scale(1)'
                 }}>
@@ -194,20 +151,18 @@ export default function DashboardLayout() {
                   <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
                 </svg>
               </div>
-              {/* Logo text */}
               <div className={cn('overflow-hidden transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>
                 <span className="block text-lg font-black text-slate-900 tracking-tight leading-tight whitespace-nowrap">Yui AI</span>
                 <span className="block text-[0.6rem] font-black text-emerald-600/60 uppercase tracking-[0.2em] mt-1 whitespace-nowrap">Financial Agent</span>
               </div>
             </div>
 
-            {/* Collapse toggle (desktop) */}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={cn(
                 "hidden lg:flex items-center justify-center rounded-xl transition-all duration-300 group/toggle",
-                collapsed 
-                  ? "w-10 h-10 bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm" 
+                collapsed
+                  ? "w-10 h-10 bg-white border border-slate-200 text-slate-400 hover:text-emerald-500 hover:border-emerald-200 shadow-sm"
                   : "w-8 h-8 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50"
               )}
             >
@@ -223,7 +178,6 @@ export default function DashboardLayout() {
         <nav className="px-3 pt-4 flex-1 flex flex-col gap-1 overflow-y-auto no-scrollbar">
           {NAV_ITEMS.map((section) => (
             <div key={section.section} className="mb-4">
-              {/* Section label */}
               <p className={cn(
                 'text-[0.6rem] font-black uppercase tracking-[0.25em] text-slate-400 px-4 py-2 mb-1 transition-all duration-300 overflow-hidden whitespace-nowrap',
                 collapsed ? 'opacity-0 max-h-0 py-0' : 'opacity-100 max-h-10'
@@ -255,7 +209,6 @@ export default function DashboardLayout() {
                       <span className={cn('overflow-hidden transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>
                         {item.label}
                       </span>
-                      {/* Active Indicator Bar */}
                       {isActive && !collapsed && (
                         <div className="absolute left-0 top-3 bottom-3 w-1 bg-emerald-500 rounded-r-full transition-all duration-300" />
                       )}
@@ -272,11 +225,10 @@ export default function DashboardLayout() {
           "p-4 pb-8 border-t border-slate-100 flex-shrink-0 flex flex-col gap-2 transition-all duration-300",
           collapsed ? "items-center" : "items-stretch"
         )}>
-          {/* Bot status pill */}
           <div className={cn(
             'flex items-center transition-all duration-300',
-            collapsed 
-              ? 'justify-center w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shadow-emerald-500/5' 
+            collapsed
+              ? 'justify-center w-11 h-11 bg-emerald-50 rounded-2xl border border-emerald-100 shadow-sm shadow-emerald-500/5'
               : 'gap-3 px-4 py-3 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl overflow-hidden whitespace-nowrap'
           )}>
             <div className="relative flex-shrink-0">
@@ -288,17 +240,16 @@ export default function DashboardLayout() {
             </span>
           </div>
 
-          {/* Logout */}
           <button
             onClick={handleLogout}
             className={cn(
               'flex items-center rounded-2xl text-[0.8rem] font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all text-left whitespace-nowrap overflow-hidden group',
-              collapsed 
-                ? 'justify-center w-10 h-10' 
+              collapsed
+                ? 'justify-center w-10 h-10'
                 : 'gap-3.5 w-full px-4 py-3'
             )}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               className="flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
               <polyline points="16 17 21 12 16 7" />
@@ -310,7 +261,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* ── Main Content Area ── */}
-      <div className="flex-1 relative z-10 overflow-hidden bg-transparent">
+      <div className="flex-1 relative z-10 flex flex-col h-full overflow-hidden bg-transparent">
         {/* Mobile top bar (Floating Island Style - Top) */}
         <div
           className="lg:hidden fixed top-4 left-6 right-6 z-50 flex items-center justify-between px-6 py-3 bg-white/70 backdrop-blur-3xl rounded-full border border-white/50 shadow-[0_10px_30px_rgba(0,0,0,0.05)]"
@@ -340,12 +291,11 @@ export default function DashboardLayout() {
           </div>
         </main>
 
-        {/* ── Mobile Floating Island Navigation (Premium 2026 Light Glass) ── */}
+        {/* ── Mobile Floating Island Navigation ── */}
         <nav className="lg:hidden fixed bottom-5 left-6 right-6 z-[100] bg-white/70 backdrop-blur-3xl rounded-[2.5rem] px-3 py-2.5 shadow-[0_15px_40px_rgba(0,0,0,0.08)] border border-white/50">
           <div className="flex items-center justify-around">
             {(() => {
               const allItems = NAV_ITEMS.flatMap(section => section.items)
-              // Custom order for mobile: [Dashboard, Chat, Config]
               const mobileItems = [allItems[0], allItems[3], allItems[2]]
 
               return mobileItems.map((item) => (
@@ -381,7 +331,7 @@ export default function DashboardLayout() {
           </div>
         </nav>
 
-        {/* Global Floating Transaction Widget (Centered Glass Style) */}
+        {/* Global Floating Transaction Widget */}
         {isDashboard && (
           <button
             onClick={() => setIsTransactionModalOpen(true)}
