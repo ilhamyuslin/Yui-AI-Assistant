@@ -631,44 +631,11 @@ export default function Chat() {
         }
         .token-tooltip { visibility: hidden; opacity: 0; transition: opacity 0.3s; position: absolute; bottom: 120%; right: 0; transform: translateX(10%); }
         .token-container:hover .token-tooltip { visibility: visible; opacity: 1; }
+        .token-tooltip:hover { visibility: visible; opacity: 1; }
       `}</style>
 
       <div className="flex flex-col h-[calc(100dvh-160px)] lg:h-[calc(100vh-40px)] max-w-3xl mx-auto relative overflow-hidden">
 
-        {/* ── Header ── */}
-        <div className="flex-shrink-0 flex items-center justify-between pb-2 lg:pb-6">
-          <div className="hidden lg:block">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <span className="w-9 h-9 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              </span>
-              AI Chat
-            </h1>
-            <p className="text-xs text-slate-400 font-medium mt-0.5 ml-12">
-              Tanya apa saja — catat transaksi, cek saldo, budget &amp; investasi
-            </p>
-          </div>
-
-          {/* Clear History Button (Compact on Mobile) */}
-          <div className="flex-1 flex justify-end">
-            <button
-              id="chat-clear-history-btn"
-              onClick={handleClear}
-              disabled={messages.length === 0 || isLoading}
-              title="Hapus Riwayat"
-              className="flex items-center gap-2 p-3 lg:px-4 lg:py-2 rounded-2xl lg:rounded-xl text-xs font-bold text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-100 lg:border-transparent hover:border-rose-100 bg-white/50 lg:bg-transparent shadow-sm lg:shadow-none"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
-              </svg>
-              <span className="hidden lg:inline">Hapus Riwayat</span>
-            </button>
-          </div>
-        </div>
 
         {/* ── Messages Area ── */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-1 pb-4">
@@ -733,17 +700,35 @@ export default function Chat() {
               <span className="absolute text-[8px] font-black text-slate-600">{Math.round(Math.min((totalTokens / MAX_TOKENS) * 100, 100))}%</span>
 
               {/* Tooltip */}
-              <div className="token-tooltip z-50 w-48 p-3 bg-slate-900 text-white text-[10px] rounded-xl shadow-2xl pointer-events-none">
-                <p className="font-black mb-1">Penggunaan Token AI</p>
+              <div className="token-tooltip z-50 w-52 p-4 bg-slate-900 text-white text-[10px] rounded-2xl shadow-2xl border border-white/10">
+                <p className="font-black mb-1 flex items-center justify-between">
+                  <span>Penggunaan Token AI</span>
+                  <span className={`${totalTokens >= MAX_TOKENS ? 'text-rose-400' : 'text-emerald-400'}`}>
+                    {Math.round(Math.min((totalTokens / MAX_TOKENS) * 100, 100))}%
+                  </span>
+                </p>
                 <div className="flex justify-between mb-2 text-slate-400">
-                  <span>Terpakai:</span>
+                  <span>Sesi Ini:</span>
                   <span className="text-white">{(totalTokens / 1000).toFixed(1)}K / 100K</span>
                 </div>
-                <div className="w-full bg-white/10 h-1 rounded-full overflow-hidden">
-                  <div className="bg-emerald-400 h-full" style={{ width: `${Math.min((totalTokens / MAX_TOKENS) * 100, 100)}%` }} />
+                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden mb-4">
+                  <div className="bg-emerald-400 h-full transition-all duration-1000" style={{ width: `${Math.min((totalTokens / MAX_TOKENS) * 100, 100)}%` }} />
                 </div>
-                <p className="mt-2 text-slate-400 leading-relaxed italic">
-                  Limit 100K token per sesi. Klik "Hapus Riwayat" untuk meriset penggunaan.
+                
+                {/* Clear History CTA inside Tooltip */}
+                <button
+                  onClick={handleClear}
+                  disabled={messages.length === 0 || isLoading}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/10 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 rounded-xl transition-all duration-300 border border-white/5 disabled:opacity-20 disabled:pointer-events-none group/clear"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="group-hover/clear:rotate-12 transition-transform">
+                    <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  </svg>
+                  <span className="font-bold">Reset Riwayat Chat</span>
+                </button>
+
+                <p className="mt-3 text-[9px] text-slate-500 leading-relaxed italic border-t border-white/5 pt-3">
+                  Limit 100K token per sesi. Klik tombol di atas untuk mengosongkan memori AI.
                 </p>
               </div>
             </div>

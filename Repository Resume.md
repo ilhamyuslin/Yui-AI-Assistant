@@ -41,6 +41,14 @@ Sistem asisten pribadi berbasis Telegram yang terintegrasi dengan dashboard keua
 *   **`summaryStore.js`**: `getFinancialSummary()`, `getRecentTransactions()` (Fetch statistik & riwayat).
 *   **`budgetStore.js`**: `getBudgets()` (Fetch data limit vs realisasi budget).
 *   **`historyStore.js`**: `getHistory()`, `appendHistory()`, `clearHistory()` (Manajemen konteks chat).
+### 4. Frontend Dashboard (`/frontend/src/`)
+*   **`DashboardLayout.jsx`**: Core layout menggunakan **Fixed Viewport Architecture** (`fixed inset-0`) untuk kestabilan di mobile.
+    *   Mendukung *Floating Navigation Island* di mobile dan *Sidebar* di desktop.
+    *   Implementasi `mobile-nav` class untuk kontrol dinamis via CSS.
+*   **`index.css`**: Global scroll locking (`overflow: hidden` pada html/body) untuk mencegah *layout jump* pada browser mobile.
+*   **`Chat.jsx`**: Interface AI Chat dengan sistem **Elastic Container** (`flex-1`).
+    *   **Interactive Token Tooltip**: Monitoring penggunaan token 100K sekaligus tempat tombol "Reset Riwayat".
+    *   **Keyboard Awareness**: Otomatisasi penyembunyian navigasi saat input aktif untuk pengalaman ala WhatsApp.
 
 ---
 
@@ -52,6 +60,10 @@ Sistem asisten pribadi berbasis Telegram yang terintegrasi dengan dashboard keua
 5.  **Modular Storage**: Setiap domain data (Budget, Investment, Summary) memiliki Store sendiri.
 
 ## 📝 Update Logs (Recent)
-*   [2024-04-27] Implementasi Budget Tracking dengan dukungan Siklus Gajian otomatis.
-*   [2024-04-27] Penambahan fitur Smart Filtering pada riwayat transaksi bot (Filter by Type/Date/Category).
-*   [2024-04-27] Perbaikan modularitas: Pemisahan Schema dan Store untuk setiap domain tool AI.
+*   [2026-05-02] **Stabilisasi Mobile Viewport**: Implementasi layout `fixed inset-0` dan global scroll locking untuk mencegah pergeseran UI akibat *address bar* browser mobile.
+*   [2026-05-02] **Refactoring UI Chat & Minimalis Mode**: 
+    *   Penghapusan header atas untuk memaksimalkan ruang pandang (Desktop & Mobile).
+    *   Relokasi fitur "Hapus Riwayat" ke dalam **Interactive Token Tooltip** (Pop-up).
+    *   Implementasi **Responsive Placeholder** ("Ketik pesan..." khusus mobile).
+*   [2026-05-02] **Keyboard-Aware Layout**: Automasi penyembunyian navigasi bawah dan penyesuaian padding kontainer saat input chat fokus di perangkat seluler.
+*   [2026-05-02] **Account Management Tool**: Implementasi `accountSchema.js` dan `accountStore.js` untuk integrasi pengecekan saldo akun via AI.
