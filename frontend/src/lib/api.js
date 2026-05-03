@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 
+import { STANDARD_CATEGORIES } from './constants'
+
 /**
  * AI Assistant API Bridge using Supabase (Direct Mode).
  * Replacing Axios with direct Supabase SDK calls while maintaining compatibility.
@@ -19,6 +21,20 @@ export const authApi = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     return { success: true, user: data.user }
+  },
+  signUp: async (email, password) => {
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) throw error
+    return { success: true, user: data.user }
+  },
+  signInWithGoogle: async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    })
+    if (error) throw error
   },
   logout: async () => {
     const { error } = await supabase.auth.signOut()
@@ -142,7 +158,13 @@ export const statsApi = {
     const txCats = txRes.data ? txRes.data.map(d => d.category) : []
     const bgCats = bgRes.data ? bgRes.data.map(d => d.category) : []
 
-    const unique = [...new Set([...txCats, ...bgCats])].filter(Boolean).sort()
+    let unique = [...new Set([...txCats, ...bgCats])].filter(Boolean).sort()
+    
+    // Fallback to standard categories if no custom ones found
+    if (unique.length === 0) {
+      unique = STANDARD_CATEGORIES
+    }
+
     return { data: unique }
   }
 }

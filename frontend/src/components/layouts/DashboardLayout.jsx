@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Plus } from 'lucide-react'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useFinancial'
+import { useCategories } from '@/hooks/useCategories'
 import { toast } from 'sonner'
 
 const TransactionModal = lazy(() => import('@/components/dashboard/TransactionModal'))
@@ -74,6 +75,7 @@ export default function DashboardLayout() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
   const { accounts, refresh: refreshAccounts } = useAccounts()
+  const { categories, refresh: refreshCategories } = useCategories()
   const { add } = useTransactions()
 
   const handleSaveTransaction = async (data) => {
@@ -81,6 +83,7 @@ export default function DashboardLayout() {
       await add(data)
       toast.success('Transaksi berhasil disimpan')
       await refreshAccounts()
+      await refreshCategories()
       setIsTransactionModalOpen(false)
       // Signal pages to refresh data
       window.dispatchEvent(new CustomEvent('transaction-saved'))
@@ -342,7 +345,7 @@ export default function DashboardLayout() {
               open={isTransactionModalOpen}
               onOpenChange={setIsTransactionModalOpen}
               accounts={accounts}
-              categories={['Makan & Minum', 'Belanja Bulanan', 'Transportasi', 'Tagihan & Utilitas', 'Kesehatan', 'Hiburan', 'Sedekah & Hadiah', 'Lainnya']}
+              categories={categories}
               onSave={handleSaveTransaction}
             />
           )}

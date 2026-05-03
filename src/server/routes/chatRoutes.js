@@ -7,26 +7,13 @@
 const express = require('express');
 const router = express.Router();
 
-const { initGemini, chat } = require('../../ai/gemini');
+const { chat } = require('../../ai/gemini');
 const { getConfig } = require('../../storage/configStore');
 const { getHistory, appendHistory, clearHistory } = require('../../storage/historyStore');
 const { saveTransaction } = require('../../storage/expenseStore');
 const { getToolHandler } = require('../../ai/tools/registry');
 
 // Users are authenticated via apiServer middleware (req.user)
-
-/**
- * Helper: Load config and initialize Gemini before each request.
- * This ensures the latest config (model, API key, system_instruction) is always used.
- */
-async function ensureGeminiReady(userId) {
-  const config = await getConfig(userId);
-  if (!config.gemini_api_key) {
-    throw new Error('Gemini API Key belum dikonfigurasi. Silakan set di halaman Konfigurasi.');
-  }
-  initGemini(config);
-  return config;
-}
 
 // ─── GET /api/chat/history ───────────────────────────────────
 // Mengambil riwayat percakapan saat halaman chat dibuka
@@ -65,7 +52,18 @@ router.post('/', async (req, res) => {
 
   try {
     const userId = req.user.id;
-    await ensureGeminiReady(userId);
+    const userEmail = req.user.email;
+    const config = await getConfig(userId);
+
+    console.log(`[ChatDebug] Request by: ${userEmail} (${userId})`);
+    console.log(`[ChatDebug] Config for User: ${config.user_id || userId}`);
+    console.log(`[ChatDebug] API Key found: ${!!config.gemini_api_key}`);
+    console.log(`[ChatDebug] System Instruction (Start): "${config.system_instruction?.substring(0, 30)}..."`);
+
+    if (!config.gemini_api_key) {
+      console.log(`[ChatDebug] BLOCKED: User ${userId} has no API Key`);
+      return res.status(400).json({ error: 'Gemini API Key belum dikonfigurasi. Silakan set di halaman Konfigurasi.' });
+    }
 
     const userName = req.user.user_metadata?.first_name || 'User';
 
@@ -93,8 +91,8 @@ router.post('/', async (req, res) => {
     const catResult = await getCategories(userId);
     const categories = catResult.success ? catResult.data : [];
 
-    // Send to Gemini
-    const aiResponse = await chat(message.trim(), history, categories);
+    // Send to Gemini with user-specific config
+    const aiResponse = await chat(message.trim(), history, categories, config);
 
     // ── Handle Tool Calls ──────────────────────────────────────
     if (aiResponse.functionCalls && aiResponse.functionCalls.length > 0) {
@@ -161,7 +159,7 @@ router.post('/', async (req, res) => {
             { role: 'model', parts: [{ functionCall: { name: aiResponse.functionCalls[0].name, args: aiResponse.functionCalls[0].args } }] },
             { role: 'function', parts: [{ functionResponse: { name: aiResponse.functionCalls[0].name, response: { data: immediateResult.data } } }] }
           ];
-          const finalAiResponse = await chat("Tolong rangkum hasil data di atas sesuai pertanyaanku sebelumnya secara natural dan singkat.", extendedHistory, categories);
+          const finalAiResponse = await chat("Tolong rangkum hasil data di atas sesuai pertanyaanku sebelumnya secara natural dan singkat.", extendedHistory, categories, config);
           const { total_tokens } = await appendHistory(userId, userName, message.trim(), finalAiResponse.text, finalAiResponse.tokensUsed);
           return res.json({
             type: 'TEXT',

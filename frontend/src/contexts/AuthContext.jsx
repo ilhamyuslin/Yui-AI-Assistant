@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { authApi } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 
 const AuthContext = createContext(null)
 
@@ -8,13 +9,24 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // 1. Initial check
     checkSession()
+
+    // 2. Listen for auth changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session)
+      setIsLoading(false)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   const checkSession = async () => {
     try {
-      const { authenticated } = await authApi.check()
-      setIsAuthenticated(authenticated)
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthenticated(!!session)
     } catch {
       setIsAuthenticated(false)
     } finally {
@@ -26,6 +38,16 @@ export function AuthProvider({ children }) {
     const { success, user } = await authApi.login(email, password)
     if (success) setIsAuthenticated(true)
     return { success, user }
+  }
+
+  const register = async (email, password) => {
+    const { success, user } = await authApi.signUp(email, password)
+    if (success && user) setIsAuthenticated(true)
+    return { success, user }
+  }
+
+  const loginWithGoogle = async () => {
+    await authApi.signInWithGoogle()
   }
 
   const logout = async () => {
@@ -42,7 +64,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, login, register, loginWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   )

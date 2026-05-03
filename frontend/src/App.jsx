@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import Login from '@/pages/Login'
+import Register from '@/pages/Register'
 import DashboardLayout from '@/components/layouts/DashboardLayout'
 import Overview from '@/pages/Overview'
 import Config from '@/pages/Config'
@@ -27,6 +28,9 @@ export default function App() {
         <Routes>
           <Route path="/login" element={
             <PublicRoute><Login /></PublicRoute>
+          } />
+          <Route path="/register" element={
+            <PublicRoute><Register /></PublicRoute>
           } />
           <Route path="/" element={
             <PrivateRoute><DashboardLayout /></PrivateRoute>

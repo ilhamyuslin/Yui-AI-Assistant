@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../../storage/supabaseClient');
 const dayjs = require('dayjs');
+const { getActiveCategories } = require('../../services/transactionService');
 
 /**
  * GET /api/transactions
@@ -34,6 +35,19 @@ router.get('/', async (req, res) => {
     if (error) throw error;
 
     res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/transactions/categories
+ * Fetch dynamic list of categories for the current user.
+ */
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await getActiveCategories(req.user.id);
+    res.json(categories);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -384,7 +398,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-const { getActiveCategories } = require('../../services/transactionService');
+
 
 /**
  * GET /api/transactions/categories
