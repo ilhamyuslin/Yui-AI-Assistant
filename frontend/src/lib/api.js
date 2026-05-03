@@ -50,10 +50,14 @@ export const statsApi = {
   getBudgets: async (params) => {
     const { startDate, endDate } = params
 
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     // 1. Ambil list budget
     const { data: budgetList, error: budgetError } = await supabase
       .from('budgets')
       .select('*')
+      .eq('user_id', user.id)
       .order('category', { ascending: true })
 
     if (budgetError) throw budgetError
@@ -66,6 +70,7 @@ export const statsApi = {
 
     if (startDate) txQuery = txQuery.gte('transaction_date', startDate)
     if (endDate) txQuery = txQuery.lte('transaction_date', endDate)
+    txQuery = txQuery.eq('user_id', user.id)
 
     const { data: txData, error: txError } = await txQuery
     if (txError) throw txError
@@ -126,9 +131,12 @@ export const statsApi = {
   },
 
   getCategories: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const [txRes, bgRes] = await Promise.all([
-      supabase.from('transactions').select('category'),
-      supabase.from('budgets').select('category')
+      supabase.from('transactions').select('category').eq('user_id', user.id),
+      supabase.from('budgets').select('category').eq('user_id', user.id)
     ])
 
     const txCats = txRes.data ? txRes.data.map(d => d.category) : []
@@ -142,9 +150,13 @@ export const statsApi = {
 // ─── Transactions ─────────────────────────────────────────────
 export const transactionApi = {
   getAll: async (params) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     let query = supabase
       .from('transactions')
       .select('*')
+      .eq('user_id', user.id)
       .order('transaction_date', { ascending: false })
       .order('created_at', { ascending: false })
 
@@ -159,10 +171,14 @@ export const transactionApi = {
   },
 
   update: async (id, data) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data: updated, error } = await supabase
       .from('transactions')
       .update(data)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single()
 
@@ -171,23 +187,26 @@ export const transactionApi = {
   },
 
   delete: async (id) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     // 1. Get transaction details for reversal
     const { data: tx, error: fetchError } = await supabase
       .from('transactions')
       .select('*')
       .eq('id', id)
+      .eq('user_id', user.id)
       .single()
 
     if (fetchError || !tx) throw new Error('Transaksi tidak ditemukan.')
 
     const amount = Number(tx.amount)
-    const { data: { user } } = await supabase.auth.getUser()
 
     // 2. Fetch all accounts for case-insensitive matching
     const { data: allAccounts } = await supabase
       .from('accounts')
       .select('*')
-      .eq('user_id', user?.id)
+      .eq('user_id', user.id)
 
     const findAccount = (name) => {
       if (!name) return null;
@@ -225,6 +244,7 @@ export const transactionApi = {
       .from('transactions')
       .delete()
       .eq('id', id)
+      .eq('user_id', user.id)
 
     if (error) throw error
     return { success: true }
@@ -253,35 +273,45 @@ export const transactionApi = {
 // ─── Config ───────────────────────────────────────────────────
 export const configApi = {
   get: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('ai_assistant_config')
       .select('*')
-      .eq('id', 1)
-      .single()
+      .eq('user_id', user.id)
+      .maybeSingle()
 
     if (error) throw error
+
+    // If no config exists for this user, return default or empty
+    if (!data) {
+      return {
+        data: {
+          gemini_api_key: '',
+          gemini_model: 'gemini-3.1-flash-lite',
+          system_instruction: '',
+          _has_gemini_key: false
+        }
+      }
+    }
 
     // Add flags for UI compatibility
     return {
       data: {
         ...data,
-        _has_telegram_token: !!data.telegram_token,
         _has_gemini_key: !!data.gemini_api_key
       }
     }
   },
 
   update: async (updates) => {
-    // Format whitelist back to array if it's a string from form
-    const formatted = { ...updates }
-    if (typeof updates.whitelisted_users === 'string') {
-      formatted.whitelisted_users = updates.whitelisted_users.split('\n').filter(Boolean).map(id => parseInt(id))
-    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
 
     const { data, error } = await supabase
       .from('ai_assistant_config')
-      .update(formatted)
-      .eq('id', 1)
+      .upsert({ ...updates, user_id: user.id }, { onConflict: 'user_id' })
       .select()
       .single()
 
@@ -290,18 +320,20 @@ export const configApi = {
   },
 
   getCycle: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
-      .from('ai_assistant_config')
+      .from('profiles')
       .select('budget_cycle_day')
-      .eq('id', 1)
+      .eq('id', user.id)
       .single()
 
     if (error) throw error
     return { data: { payDay: data.budget_cycle_day } }
   },
 
-  testGemini: () => Promise.resolve({ data: { response: 'Test mode: Direct Supabase can not test Gemini directly. Please use Bot Server.' } }),
-  testTelegram: () => Promise.resolve({ data: { bot_username: 'AI_Assistant', bot_name: 'AI Assistant' } }),
+  testGemini: () => Promise.resolve({ data: { response: 'Test mode: Direct Supabase can not test Gemini directly. Please use API server.' } }),
 }
 
 // ─── Whitelist ────────────────────────────────────────────────
@@ -312,9 +344,13 @@ export const whitelistApi = {
 // ─── Accounts ─────────────────────────────────────────────────
 export const accountApi = {
   getAll: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('accounts')
       .select('*')
+      .eq('user_id', user.id)
       .order('name', { ascending: true })
 
     if (error) throw error
@@ -349,10 +385,14 @@ export const accountApi = {
   },
 
   update: async (id, data) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data: updated, error } = await supabase
       .from('accounts')
       .update(data)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single()
 
@@ -361,10 +401,14 @@ export const accountApi = {
   },
 
   delete: async (id) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { error } = await supabase
       .from('accounts')
       .delete()
       .eq('id', id)
+      .eq('user_id', user.id)
 
     if (error) throw error
     return { success: true }
@@ -427,9 +471,13 @@ export const botApi = {
 // ─── Investments ──────────────────────────────────────────────
 export const investmentApi = {
   getAll: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('investments')
       .select('*')
+      .eq('user_id', user.id)
       .order('purchase_date', { ascending: false })
 
     if (error) throw error
@@ -458,10 +506,14 @@ export const investmentApi = {
   },
 
   update: async (id, payload) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('investments')
       .update(payload)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single()
 
@@ -470,10 +522,14 @@ export const investmentApi = {
   },
 
   delete: async (id) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { error } = await supabase
       .from('investments')
       .delete()
       .eq('id', id)
+      .eq('user_id', user.id)
 
     if (error) throw error
     return { success: true }
@@ -483,9 +539,13 @@ export const investmentApi = {
 // ─── Goals ────────────────────────────────────────────────────
 export const goalApi = {
   getAll: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('goals')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -507,10 +567,14 @@ export const goalApi = {
   },
 
   update: async (id, payload) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { data, error } = await supabase
       .from('goals')
       .update(payload)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single()
 
@@ -519,10 +583,14 @@ export const goalApi = {
   },
 
   delete: async (id) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { error } = await supabase
       .from('goals')
       .delete()
       .eq('id', id)
+      .eq('user_id', user.id)
 
     if (error) throw error
     return { success: true }

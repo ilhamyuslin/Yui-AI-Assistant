@@ -90,7 +90,10 @@ async function handle(args, ctx, functionName) {
   
   if (functionName === 'request_financial_summary') {
     // RETURN HARDCODED FORMATTED REPORT TO PREVENT HALLUCINATION
-    const reportText = await generateFinancialReport({ range: args.range || 'weekly' });
+    const reportText = await generateFinancialReport({ 
+      range: args.range || 'weekly',
+      userId: ctx.userId 
+    });
     return {
       type: 'FORMATTED_REPORT',
       data: reportText
@@ -99,19 +102,26 @@ async function handle(args, ctx, functionName) {
   
   if (functionName === 'request_account_balances') {
     const { supabase } = require('../../storage/supabaseClient');
-    const { data: accounts } = await supabase.from('accounts').select('*');
+    const { data: accounts } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('user_id', ctx.userId); // SECURITY: Only user's accounts
     data = accounts || [];
   }
   else if (functionName === 'request_budget_report') {
-    data = await getBudgetReport(args.period || 'monthly');
+    data = await getBudgetReport(args.period || 'monthly', ctx.userId);
   }
   else if (functionName === 'request_recent_transactions') {
-    data = await getTransactionList({ limit: args.limit || 5 });
+    data = await getTransactionList({ 
+      limit: args.limit || 5,
+      userId: ctx.userId 
+    });
   }
   else if (functionName === 'request_transactions_by_date') {
     data = await getTransactionList({ 
       startDate: args.startDate, 
-      endDate: args.endDate || args.startDate 
+      endDate: args.endDate || args.startDate,
+      userId: ctx.userId 
     });
   }
 

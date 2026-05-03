@@ -634,11 +634,11 @@ export default function Chat() {
         .token-tooltip:hover { visibility: visible; opacity: 1; }
       `}</style>
 
-      <div className="flex flex-col h-[calc(100dvh-160px)] lg:h-[calc(100vh-40px)] max-w-3xl mx-auto relative overflow-hidden">
+      <div className="flex flex-col h-[calc(100dvh-160px)] lg:h-[calc(100vh-80px)] max-w-3xl mx-auto relative overflow-hidden">
 
 
         {/* ── Messages Area ── */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-1 pb-4">
+        <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-2 lg:pt-10 pb-4">
           {messages.length === 0 && !isLoading ? (
             <EmptyState />
           ) : (

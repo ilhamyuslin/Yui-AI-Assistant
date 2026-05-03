@@ -11,6 +11,7 @@ router.get('/', async (req, res) => {
     const { data, error } = await supabase
       .from('accounts')
       .select('*')
+      .eq('user_id', req.user.id)
       .order('name', { ascending: true });
 
     if (error) throw error;
@@ -35,11 +36,12 @@ router.post('/', async (req, res) => {
     const { data, error } = await supabase
       .from('accounts')
       .upsert({ 
+        user_id: req.user.id,
         name, 
         balance: parseFloat(balance || 0), 
         icon: icon || '💰',
         updated_at: new Date().toISOString()
-      }, { onConflict: 'name' })
+      }, { onConflict: 'user_id, name' })
       .select();
 
     if (error) throw error;
@@ -63,6 +65,7 @@ router.put('/:id', async (req, res) => {
       .from('accounts')
       .select('name')
       .eq('id', id)
+      .eq('user_id', req.user.id)
       .single();
 
     if (fetchError) throw fetchError;
@@ -79,6 +82,7 @@ router.put('/:id', async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
+      .eq('user_id', req.user.id)
       .select();
 
     if (updateError) throw updateError;
@@ -88,6 +92,7 @@ router.put('/:id', async (req, res) => {
       const { error: txError } = await supabase
         .from('transactions')
         .update({ source_of_fund: name })
+        .eq('user_id', req.user.id)
         .eq('source_of_fund', oldName);
       
       if (txError) console.error('Failed to sync transactions during account rename:', txError);
@@ -108,7 +113,8 @@ router.delete('/:id', async (req, res) => {
     const { error } = await supabase
       .from('accounts')
       .delete()
-      .eq('id', req.params.id);
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id);
 
     if (error) throw error;
     res.json({ success: true });

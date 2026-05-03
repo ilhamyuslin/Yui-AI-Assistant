@@ -32,7 +32,7 @@ function getActualPayday(date, payDay) {
 /**
  * Common date range calculator.
  */
-async function calculateDateRange(range, customStart, customEnd) {
+async function calculateDateRange(range, customStart, customEnd, userId) {
   let start = customStart;
   let end = customEnd;
 
@@ -43,9 +43,14 @@ async function calculateDateRange(range, customStart, customEnd) {
     start = dayjs().tz().startOf('isoWeek').format('YYYY-MM-DD');
     end = dayjs().tz().endOf('isoWeek').format('YYYY-MM-DD');
   } else if (range === 'monthly') {
-    const { getConfig } = require('../storage/configStore');
-    const config = await getConfig();
-    const payDay = config.budget_cycle_day || 25;
+    // SECURITY: Fetch personal payday from profiles table
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('budget_cycle_day')
+      .eq('id', userId)
+      .single();
+
+    const payDay = profileData?.budget_cycle_day || 1;
     
     const cycle = await getCycleRange(payDay);
     start = cycle.start;
@@ -58,12 +63,13 @@ async function calculateDateRange(range, customStart, customEnd) {
 /**
  * Fetch aggregated statistics like total income, expense, and category breakdown.
  */
-async function getSummaryStats({ range, startDate, endDate }) {
-  const { start, end } = await calculateDateRange(range, startDate, endDate);
+async function getSummaryStats({ range, startDate, endDate, userId }) {
+  const { start, end } = await calculateDateRange(range, startDate, endDate, userId);
 
   const { data: transactions, error } = await supabase
     .from('transactions')
     .select('*')
+    .eq('user_id', userId) // SECURITY: Only fetch user's own data
     .gte('transaction_date', start || dayjs().tz().startOf('month').format('YYYY-MM-DD'))
     .lte('transaction_date', end || dayjs().tz().endOf('month').format('YYYY-MM-DD'));
 
@@ -109,18 +115,20 @@ async function getSummaryStats({ range, startDate, endDate }) {
 /**
  * Fetch a list of individual transactions.
  */
-async function getTransactionList({ range, startDate, endDate, transaction_type, limit = 50 }) {
-  const { start, end } = await calculateDateRange(range, startDate, endDate);
-
+async function getTransactionList({ limit, category, transaction_type, startDate, endDate, userId }) {
+  const { start, end } = await calculateDateRange(null, startDate, endDate, userId);
+  
   let query = supabase
     .from('transactions')
     .select('*')
+    .eq('user_id', userId) // SECURITY: Only fetch user's own data
     .order('transaction_date', { ascending: false })
-    .limit(limit);
+    .limit(limit || 5);
 
   if (start) query = query.gte('transaction_date', start);
   if (end) query = query.lte('transaction_date', end);
   if (transaction_type) query = query.eq('transaction_type', transaction_type);
+  if (category) query = query.eq('category', category);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -167,17 +175,11 @@ async function getCycleRange(payDay = 25) {
 }
 
 /**
- * Fetch budget status vs actual spending.
+ * Gets budget statistics for a specific period.
  */
-async function getBudgetReport(period) {
-  const { getConfig } = require('../storage/configStore');
-  const config = await getConfig();
-  const payDay = config.payDay || 25;
-
+async function getBudgetReport({ userId, period, payDay = 25 }) {
   let start, end;
-
-  if (period && period !== 'monthly') {
-    // Custom period (calendar month YYYY-MM)
+  if (period) {
     start = dayjs(period).startOf('month').format('YYYY-MM-DD');
     end = dayjs(period).endOf('month').format('YYYY-MM-DD');
   } else {
@@ -190,7 +192,8 @@ async function getBudgetReport(period) {
   // 1. Get budgets
   const { data: budgetLimits, error: budgetError } = await supabase
     .from('budgets')
-    .select('*');
+    .select('*')
+    .eq('user_id', userId);
 
   if (budgetError) throw budgetError;
 
@@ -198,6 +201,7 @@ async function getBudgetReport(period) {
   const { data: actuals, error: actualError } = await supabase
     .from('transactions')
     .select('category, amount')
+    .eq('user_id', userId)
     .eq('transaction_type', 'Expense')
     .gte('transaction_date', start)
     .lte('transaction_date', end);
@@ -222,13 +226,14 @@ async function getBudgetReport(period) {
  * Generate a pre-formatted financial report for the AI to display.
  * This prevents AI from hallucinating numbers by doing calculations in JS/SQL instead.
  */
-async function generateFinancialReport({ range = 'weekly' }) {
-  const { start, end } = await calculateDateRange(range);
+async function generateFinancialReport({ range = 'weekly', userId }) {
+  const { start, end } = await calculateDateRange(range, null, null, userId);
   
   // Use a more robust query for categories to match dashboard perfectly
   const { data: stats, error } = await supabase
     .from('transactions')
     .select('amount, category, item_name')
+    .eq('user_id', userId)
     .eq('transaction_type', 'Expense')
     .gte('transaction_date', start)
     .lte('transaction_date', end);
@@ -275,9 +280,9 @@ async function generateFinancialReport({ range = 'weekly' }) {
  * Fetch the master list of active categories (Budgets + Transactions).
  * Used for AI classification and dashboard filters.
  */
-async function getActiveCategories() {
-  const { data: budgets } = await supabase.from('budgets').select('category');
-  const { data: transactions } = await supabase.from('transactions').select('category');
+async function getActiveCategories(userId) {
+  const { data: budgets } = await supabase.from('budgets').select('category').eq('user_id', userId);
+  const { data: transactions } = await supabase.from('transactions').select('category').eq('user_id', userId);
 
   const budgetCats = (budgets || []).map(b => b.category);
   const txCats = (transactions || []).map(t => t.category);

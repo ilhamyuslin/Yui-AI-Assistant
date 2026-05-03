@@ -13,38 +13,6 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
   const [modalOpen, setModalOpen] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
   const scrollRef = useRef(null)
-  const [scrollIndex, setScrollIndex] = useState(0)
-
-  const lastInteractionRef = useRef(Date.now())
-
-  // Smart Auto-slide logic
-  useEffect(() => {
-    if (loading || accounts.length <= 1) return
-
-    const interval = setInterval(() => {
-      const now = Date.now()
-      // Only slide if there hasn't been manual interaction in the last 10 seconds
-      if (now - lastInteractionRef.current < 10000) return
-
-      const el = scrollRef.current
-      if (el) {
-        const { scrollLeft, scrollWidth, clientWidth } = el
-        const itemWidth = 256 // Card + Gap
-        
-        if (scrollLeft + clientWidth >= scrollWidth - 20) {
-          el.scrollTo({ left: 0, behavior: 'smooth' })
-        } else {
-          el.scrollTo({ left: scrollLeft + itemWidth, behavior: 'smooth' })
-        }
-      }
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [loading, accounts.length])
-
-  const handleManualScroll = () => {
-    lastInteractionRef.current = Date.now()
-  }
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat('id-ID', {
@@ -103,7 +71,6 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
 
           <div
             ref={scrollRef}
-            onPointerDown={handleManualScroll}
             className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth h-full outline-none px-8 py-4 -my-4"
             style={{
               msOverflowStyle: 'none',

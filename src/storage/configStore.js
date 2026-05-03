@@ -7,41 +7,50 @@
 const { supabase } = require('./supabaseClient');
 
 const DEFAULT_CONFIG = {
-  telegram_token: '',
   gemini_api_key: '',
   gemini_model: 'gemini-3.1-flash-lite-preview',
   system_instruction: 'Kamu adalah AI assistant pribadi yang cerdas, ramah, dan sangat membantu. Kamu berbicara dalam bahasa Indonesia secara natural dan santai.',
-  whitelisted_users: [],
-  budget_cycle_day: 1,
 };
 
-async function getConfig() {
-  const { data, error } = await supabase
+async function getConfig(userId) {
+  if (!userId) return { ...DEFAULT_CONFIG, budget_cycle_day: 1 };
+
+  // 1. Get Gemini Config
+  const { data: configData, error: configError } = await supabase
     .from('ai_assistant_config')
     .select('*')
-    .eq('id', 1)
+    .eq('user_id', userId)
     .single();
 
-  if (error || !data) {
-    console.warn('[Config] Using default config:', error?.message);
-    return { ...DEFAULT_CONFIG };
-  }
+  // 2. Get Cycle Day from Profiles
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('budget_cycle_day')
+    .eq('id', userId)
+    .single();
 
+  const config = configData || {};
+  
   return {
-    telegram_token: data.telegram_token || '',
-    gemini_api_key: data.gemini_api_key || '',
-    gemini_model: data.gemini_model || DEFAULT_CONFIG.gemini_model,
-    system_instruction: data.system_instruction || DEFAULT_CONFIG.system_instruction,
-    whitelisted_users: data.whitelisted_users || [],
-    budget_cycle_day: data.budget_cycle_day || DEFAULT_CONFIG.budget_cycle_day,
+    gemini_api_key: config.gemini_api_key || '',
+    gemini_model: config.gemini_model || DEFAULT_CONFIG.gemini_model,
+    system_instruction: config.system_instruction || DEFAULT_CONFIG.system_instruction,
+    budget_cycle_day: profileData?.budget_cycle_day || 1,
   };
 }
 
-async function saveConfig(updates) {
+async function saveConfig(userId, updates) {
+  if (!userId) throw new Error('User ID is required to save configuration');
+
+  const { budget_cycle_day, ...cleanUpdates } = updates;
+
   const { data, error } = await supabase
     .from('ai_assistant_config')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', 1)
+    .upsert({ 
+      user_id: userId,
+      ...cleanUpdates, 
+      updated_at: new Date().toISOString() 
+    }, { onConflict: 'user_id' })
     .select()
     .single();
 

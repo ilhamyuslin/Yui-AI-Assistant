@@ -1,6 +1,6 @@
-# 🤖 AI Assistant — Telegram + Gemini
+# 🤖 AI Assistant — Web Chat + Gemini
 
-Personal AI Assistant berbasis Telegram yang ditenagai Google Gemini, dengan Web Dashboard untuk konfigurasi.
+Personal AI Assistant berbasis Web Chat yang ditenagai Google Gemini, dengan Web Dashboard untuk statistik dan manajemen keuangan.
 
 ---
 
@@ -23,21 +23,8 @@ Password: **1234567890**
 
 ---
 
-## ⚙️ Setup Awal (Penting!)
-
-### 1. Tambahkan User ID kamu ke Whitelist
-
-Bot ini private — hanya user yang terdaftar yang bisa chat.
-
-1. Buka Telegram, cari **@userinfobot**
-2. Kirim pesan apa saja
-3. Salin angka **Id** yang dikembalikan
-4. Buka dashboard → tab **Whitelist**
-5. Paste ID kamu → klik **Simpan Whitelist**
-
-### 2. Verifikasi Konfigurasi
-
-Buka dashboard → **Konfigurasi** → klik **Test Koneksi** (Telegram) dan **Test API Key** (Gemini) untuk memastikan semua terhubung.
+### 1. Verifikasi Konfigurasi
+Buka dashboard → **Konfigurasi** → klik **Test API Key** (Gemini) untuk memastikan koneksi ke AI lancar.
 
 ---
 
@@ -46,20 +33,17 @@ Buka dashboard → **Konfigurasi** → klik **Test Koneksi** (Telegram) dan **Te
 ```
 AI-Assistant/
 ├── src/
-│   ├── index.js              # Entry point
-│   ├── bot/
-│   │   ├── botManager.js     # Lifecycle bot (start/stop/restart)
-│   │   └── handlers.js       # Handler pesan Telegram
+│   ├── index.js              # Entry point (Web Chat Only)
 │   ├── ai/
-│   │   └── gemini.js         # Wrapper Gemini API + multi-turn chat
+│   │   ├── gemini.js         # Wrapper Gemini API
+│   │   └── tools/            # AI Tool Schemas (Budget, Expense, etc.)
 │   ├── server/
 │   │   ├── apiServer.js      # Express server + auth session
-│   │   └── routes/
-│   │       └── configRoutes.js # API routes dashboard
+│   │   └── routes/           # API routes (Chat, Config, Accounts, etc.)
 │   └── storage/
 │       ├── configStore.js    # Baca/tulis config dari Supabase
 │       ├── historyStore.js   # Chat history per user (persistent)
-│       ├── logger.js         # Log percakapan ke Supabase
+│       ├── expenseStore.js   # Simpan transaksi keuangan
 │       └── supabaseClient.js # Singleton Supabase client
 ├── dashboard/
 │   ├── index.html            # Web Config Panel
@@ -71,15 +55,6 @@ AI-Assistant/
 
 ---
 
-## 🎮 Perintah Bot
-
-| Perintah | Fungsi |
-|----------|--------|
-| `/start` | Pesan sambutan |
-| `/help`  | Tampilkan bantuan |
-| `/clear` | Hapus riwayat percakapan |
-| (teks biasa) | Chat dengan AI |
-
 ---
 
 ## 🗄️ Database (Supabase)
@@ -88,15 +63,15 @@ Menggunakan project **ExpenseTracker** di Supabase dengan tabel:
 
 | Tabel | Fungsi |
 |-------|--------|
-| `ai_assistant_config` | Konfigurasi bot (single row) |
+| `ai_assistant_config` | Konfigurasi sistem AI |
 | `ai_chat_histories` | History percakapan per user |
-| `ai_conversation_logs` | Log semua pesan masuk/keluar |
+| `profiles` | Data user & konfigurasi cycle |
 
 ---
 
 ## 🔐 Keamanan
 
 - ✅ Dashboard dilindungi session-based auth
-- ✅ Whitelist user Telegram (private bot)
+- ✅ Web Chat Interface
 - ✅ API keys tidak pernah dikirim lengkap ke frontend (di-mask)
 - ✅ Log percakapan di Supabase untuk audit

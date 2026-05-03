@@ -19,8 +19,8 @@ const { getToolHandler } = require('../../ai/tools/registry');
  * Helper: Load config and initialize Gemini before each request.
  * This ensures the latest config (model, API key, system_instruction) is always used.
  */
-async function ensureGeminiReady() {
-  const config = await getConfig();
+async function ensureGeminiReady(userId) {
+  const config = await getConfig(userId);
   if (!config.gemini_api_key) {
     throw new Error('Gemini API Key belum dikonfigurasi. Silakan set di halaman Konfigurasi.');
   }
@@ -32,19 +32,19 @@ async function ensureGeminiReady() {
 // Mengambil riwayat percakapan saat halaman chat dibuka
 router.get('/history', async (req, res) => {
   try {
-    const userId = req.user?.id || 'web_user';
+    const userId = req.user.id;
     const { history, total_tokens } = await getHistory(userId);
 
     // Map internal history format to frontend format
     const formattedHistory = history.map(msg => ({
       id: Math.random().toString(36).substring(7),
       sender: msg.role === 'model' ? 'ai' : 'user',
-      text: msg.parts[0]?.text || '',
+      text: msg.parts?.[0]?.text || '',
       timestamp: new Date()
     }));
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: formattedHistory,
       totalTokens: total_tokens || 0
     });
@@ -64,17 +64,17 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    await ensureGeminiReady();
+    const userId = req.user.id;
+    await ensureGeminiReady(userId);
 
-    const userId = req.user?.id || 'web_user';
-    const userName = req.user?.user_metadata?.first_name || 'web_user';
+    const userName = req.user.user_metadata?.first_name || 'User';
 
     // Get conversation history
     const { history: rawHistory } = await getHistory(userId);
 
     // Format history for Gemini to prevent it from mimicking the [PENDING_TX] raw string
     const history = rawHistory.map(turn => {
-      const text = turn.parts[0]?.text || '';
+      const text = turn.parts?.[0]?.text || '';
       if (turn.role === 'model' && text.includes('[PENDING_TX]')) {
         // Ekstrak data untuk tetap memberi konteks pada AI tanpa memicu marker mentah
         const cleanText = text.replace(/\[PENDING_TX\]\s*(\{.*\})/g, (match, json) => {
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
 
     // Fetch actual categories from budgets table
     const { getCategories } = require('../../storage/budgetStore');
-    const catResult = await getCategories();
+    const catResult = await getCategories(userId);
     const categories = catResult.success ? catResult.data : [];
 
     // Send to Gemini
@@ -117,12 +117,12 @@ router.post('/', async (req, res) => {
           try {
             const ctx = { userId, userName, functionCall: { name: functionName } };
             const result = await handler(args, ctx, functionName);
-            
+
             if (result && result.type && result.type.startsWith('PENDING_')) {
               let itemType = 'transaction';
               if (result.type.includes('ACCOUNT')) itemType = result.type.includes('DELETE') ? 'account_delete' : 'account';
               if (result.type.includes('BUDGET')) itemType = result.type.includes('DELETE') ? 'budget_delete' : 'budget';
-              
+
               pendingDrafts.push({ ...result.data, _itemType: itemType });
             } else if (result && (result.type === 'DATA' || result.type === 'FORMATTED_REPORT')) {
               immediateResult = result;
@@ -143,7 +143,7 @@ router.post('/', async (req, res) => {
 
         // Simpan ke history dengan teks kosong agar AI tidak berhalusinasi menulis ulang draf di chat
         const { total_tokens } = await appendHistory(userId, userName, message.trim(), "", aiResponse.tokensUsed);
-        
+
         return res.json({
           type: 'PENDING_MULTI',
           data: pendingDrafts,
@@ -163,8 +163,8 @@ router.post('/', async (req, res) => {
           ];
           const finalAiResponse = await chat("Tolong rangkum hasil data di atas sesuai pertanyaanku sebelumnya secara natural dan singkat.", extendedHistory, categories);
           const { total_tokens } = await appendHistory(userId, userName, message.trim(), finalAiResponse.text, finalAiResponse.tokensUsed);
-          return res.json({ 
-            type: 'TEXT', 
+          return res.json({
+            type: 'TEXT',
             text: finalAiResponse.text,
             totalTokens: total_tokens
           });
@@ -172,8 +172,8 @@ router.post('/', async (req, res) => {
 
         if (immediateResult.type === 'FORMATTED_REPORT') {
           const { total_tokens } = await appendHistory(userId, userName, message.trim(), immediateResult.data, aiResponse.tokensUsed);
-          return res.json({ 
-            type: 'TOOL_RESULT', 
+          return res.json({
+            type: 'TOOL_RESULT',
             text: immediateResult.data,
             totalTokens: total_tokens
           });
@@ -184,8 +184,8 @@ router.post('/', async (req, res) => {
     // ── Normal text response ───────────────────────────────────
     const cleanText = aiResponse.text.replace(/\[SISTEM:.*\]/g, '').replace(/\[PENDING_TX\].*/g, '').trim();
     const { total_tokens } = await appendHistory(userId, userName, message.trim(), cleanText || 'Ok, draf transaksi sudah disiapkan.', aiResponse.tokensUsed);
-    return res.json({ 
-      type: 'TEXT', 
+    return res.json({
+      type: 'TEXT',
       text: cleanText || 'Ok, draf transaksi sudah disiapkan.',
       totalTokens: total_tokens
     });
@@ -205,13 +205,11 @@ router.post('/confirm', async (req, res) => {
     return res.status(400).json({ error: 'Data transaksi tidak ditemukan.' });
   }
 
-  try {
-    const result = await saveTransaction(txData);
-
-    const userId = req.user?.id || 'web_user';
-    const userName = req.user?.user_metadata?.first_name || 'web_user';
+    const userId = req.user.id;
+    const result = await saveTransaction({ ...txData, user_id: userId });
 
     if (result.success) {
+      const userName = req.user.user_metadata?.first_name || 'User';
       const confirmMsg = `✅ Berhasil disimpan!\n\n${txData.item_name} — Rp ${Number(txData.amount).toLocaleString('id-ID')}\nKategori: ${txData.category}\nSumber: ${txData.source_of_fund}${result.warning ? `\n\n${result.warning}` : ''}`;
       await appendHistory(userId, userName, 'Konfirmasi simpan transaksi.', confirmMsg);
       return res.json({ success: true, message: confirmMsg, warning: result.warning || null });
@@ -228,8 +226,8 @@ router.post('/confirm', async (req, res) => {
 // Cancels a pending transaction. Just appends to history.
 router.post('/cancel', async (req, res) => {
   try {
-    const userId = req.user?.id || 'web_user';
-    const userName = req.user?.user_metadata?.first_name || 'web_user';
+    const userId = req.user.id;
+    const userName = req.user.user_metadata?.first_name || 'User';
     await appendHistory(userId, userName, 'Batalkan transaksi.', 'Transaksi dibatalkan.');
     return res.json({ success: true });
   } catch (err) {
@@ -246,9 +244,11 @@ router.post('/confirm-account', async (req, res) => {
   if (!accountData) return res.status(400).json({ error: 'Data akun tidak ditemukan.' });
 
   try {
-    const result = await upsertAccount(accountData);
-    const userId = req.user?.id || 'web_user';
-    const userName = req.user?.user_metadata?.first_name || 'web_user';
+    const userId = req.user?.id; // SECURITY: Always get ID from verified session
+    if (!userId) return res.status(401).json({ error: 'Session tidak valid.' });
+
+    const result = await upsertAccount({ ...accountData, user_id: userId });
+    const userName = req.user.user_metadata?.first_name || 'User';
 
     if (result.success) {
       const confirmMsg = `✅ Akun ${accountData.name} berhasil disimpan dengan saldo Rp ${Number(accountData.balance || 0).toLocaleString('id-ID')}!`;
@@ -268,9 +268,11 @@ router.post('/delete-account', async (req, res) => {
   const { deleteAccount } = require('../../storage/accountStore');
 
   try {
-    const result = await deleteAccount({ id, name });
-    const userId = req.user?.id || 'web_user';
-    const userName = req.user?.user_metadata?.first_name || 'web_user';
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Session tidak valid.' });
+
+    const result = await deleteAccount({ id, name }, userId);
+    const userName = req.user.user_metadata?.first_name || 'User';
 
     if (result.success) {
       const confirmMsg = `🗑️ Akun ${name} telah dihapus dari sistem.`;
@@ -287,7 +289,7 @@ router.post('/delete-account', async (req, res) => {
 // ─── POST /api/chat/clear ─────────────────────────────────────
 router.post('/clear', async (req, res) => {
   try {
-    const userId = req.user?.id || 'web_user';
+    const userId = req.user.id;
     const { clearHistory } = require('../../storage/historyStore');
     await clearHistory(userId);
     return res.json({ success: true });
@@ -305,7 +307,10 @@ router.post('/confirm-budget', async (req, res) => {
   if (!budgetData) return res.status(400).json({ error: 'Data anggaran tidak ditemukan.' });
 
   try {
-    const result = await upsertBudget(budgetData);
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const result = await upsertBudget({ ...budgetData, user_id: userId });
     if (result.success) {
       res.json({ success: true, message: result.message, data: result.data });
     } else {
@@ -323,7 +328,10 @@ router.delete('/delete-budget', async (req, res) => {
   if (!category) return res.status(400).json({ error: 'Kategori anggaran wajib diisi.' });
 
   try {
-    const result = await deleteBudget(category);
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const result = await deleteBudget(category, userId);
     if (result.success) {
       res.json({ success: true, message: result.message });
     } else {

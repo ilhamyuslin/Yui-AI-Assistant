@@ -10,15 +10,15 @@ const { supabase } = require('./supabaseClient');
  * Calculates the current budget cycle based on payday configuration.
  * @returns {Object} { startDate, endDate }
  */
-async function getCurrentCycleRange() {
-  // 1. Fetch payday config from database
-  const { data: config } = await supabase
-    .from('ai_assistant_config')
+async function getCurrentCycleRange(userId) {
+  // 1. Fetch payday config from profiles table
+  const { data: profileData } = await supabase
+    .from('profiles')
     .select('budget_cycle_day')
-    .eq('id', 1)
+    .eq('id', userId)
     .single();
 
-  const payDay = config?.budget_cycle_day || 1;
+  const payDay = profileData?.budget_cycle_day || 1;
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
@@ -49,14 +49,14 @@ async function getCurrentCycleRange() {
  * Gets budget statistics (limit vs actual) for a specific period.
  * If no dates provided, defaults to current payday cycle.
  */
-async function getBudgets(p_startDate, p_endDate) {
+async function getBudgets(p_startDate, p_endDate, userId) {
   try {
     let startDate = p_startDate;
     let endDate = p_endDate;
 
     // Default to current payday cycle if dates are not provided
     if (!startDate || !endDate) {
-      const cycle = await getCurrentCycleRange();
+      const cycle = await getCurrentCycleRange(userId);
       startDate = startDate || cycle.startDate;
       endDate = endDate || cycle.endDate;
     }
@@ -65,6 +65,7 @@ async function getBudgets(p_startDate, p_endDate) {
     const { data: budgetList, error: budgetError } = await supabase
       .from('budgets')
       .select('*')
+      .eq('user_id', userId) // SECURITY: Only user's budgets
       .order('category', { ascending: true });
 
     if (budgetError) throw budgetError;
@@ -73,6 +74,7 @@ async function getBudgets(p_startDate, p_endDate) {
     let txQuery = supabase
       .from('transactions')
       .select('category, amount')
+      .eq('user_id', userId) // SECURITY: Only user's transactions
       .eq('transaction_type', 'Expense');
 
     if (startDate) txQuery = txQuery.gte('transaction_date', startDate);
@@ -111,11 +113,12 @@ async function getBudgets(p_startDate, p_endDate) {
  * Gets a unique list of category names from the budgets table.
  * Useful for providing AI with valid category options.
  */
-async function getCategories() {
+async function getCategories(userId) {
   try {
     const { data, error } = await supabase
       .from('budgets')
-      .select('category');
+      .select('category')
+      .eq('user_id', userId); // SECURITY: Only user's categories
       
     if (error) throw error;
     
@@ -135,7 +138,7 @@ async function getCategories() {
 async function upsertBudget(budgetData) {
   try {
     const payload = {
-      user_id: process.env.DEFAULT_USER_ID,
+      user_id: budgetData.user_id, // Use passed user_id
       category: budgetData.category,
       amount: parseFloat(budgetData.amount || 0),
       behavior_group: budgetData.behavior_group || 'Want',
@@ -144,7 +147,7 @@ async function upsertBudget(budgetData) {
 
     const { data, error } = await supabase
       .from('budgets')
-      .upsert(payload, { onConflict: 'category' })
+      .upsert(payload, { onConflict: 'user_id, category' })
       .select()
       .single();
 
@@ -162,12 +165,12 @@ async function upsertBudget(budgetData) {
 /**
  * Deletes a budget category.
  */
-async function deleteBudget(category) {
+async function deleteBudget(category, userId) {
   try {
     const { error } = await supabase
       .from('budgets')
       .delete()
-      .eq('user_id', process.env.DEFAULT_USER_ID)
+      .eq('user_id', userId) // SECURITY: Only user's budgets
       .eq('category', category);
 
     if (error) throw error;

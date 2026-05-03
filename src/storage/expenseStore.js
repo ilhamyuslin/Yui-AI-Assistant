@@ -20,7 +20,7 @@ async function saveTransaction(data) {
     const { error: txError, data: insertedData } = await supabase
       .from('transactions')
       .insert([{
-        user_id: process.env.DEFAULT_USER_ID,
+        user_id: data.user_id, // Mandatory from session
         message_id: data.message_id,
         transaction_type: data.transaction_type, // 'Expense', 'Income', or 'Transfer'
         amount: amount,
@@ -50,7 +50,7 @@ async function saveTransaction(data) {
     const { data: allAccounts, error: accError } = await supabase
       .from('accounts')
       .select('name, balance')
-      .eq('user_id', process.env.DEFAULT_USER_ID);
+      .eq('user_id', data.user_id);
 
     if (accError) throw accError;
 
@@ -77,14 +77,14 @@ async function saveTransaction(data) {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', data.user_id);
         balanceUpdated = true;
       }
       else if (tx.transaction_type === 'Expense') {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', data.user_id);
         balanceUpdated = true;
       }
       else if (tx.transaction_type === 'Transfer' && destAcc) {
@@ -92,12 +92,12 @@ async function saveTransaction(data) {
         await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', data.user_id);
         // Atomic update for Destination
         await supabase.from('accounts').update({
           balance: parseFloat(destAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', destName);
+        }).eq('name', destName).eq('user_id', data.user_id);
         balanceUpdated = true;
       }
     }
@@ -119,13 +119,14 @@ async function saveTransaction(data) {
  * @param {string} id - The transaction ID.
  * @returns {Promise<{ success: boolean, error: any }>}
  */
-async function deleteTransaction(id) {
+async function deleteTransaction(id, userId) {
   try {
-    // 1. Fetch transaction details first
+    // 1. Fetch transaction details first - ensure it belongs to the user
     const { data: tx, error: fetchError } = await supabase
       .from('transactions')
       .select('*')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError) throw fetchError;
@@ -166,7 +167,7 @@ async function deleteTransaction(id) {
         const { error: updError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', tx.user_id);
         if (updError) throw updError;
       }
       else if (tx.transaction_type === 'Expense') {
@@ -174,7 +175,7 @@ async function deleteTransaction(id) {
         const { error: updError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', tx.user_id);
         if (updError) throw updError;
       }
       else if (tx.transaction_type === 'Transfer' && destAcc) {
@@ -182,13 +183,13 @@ async function deleteTransaction(id) {
         const { error: updSrcError } = await supabase.from('accounts').update({
           balance: parseFloat(sourceAcc.balance) + amount,
           updated_at: new Date().toISOString()
-        }).eq('name', sourceName);
+        }).eq('name', sourceName).eq('user_id', tx.user_id);
         if (updSrcError) throw updSrcError;
-
+ 
         const { error: updDestError } = await supabase.from('accounts').update({
           balance: parseFloat(destAcc.balance) - amount,
           updated_at: new Date().toISOString()
-        }).eq('name', destName);
+        }).eq('name', destName).eq('user_id', tx.user_id);
         if (updDestError) throw updDestError;
       }
     }
@@ -197,7 +198,8 @@ async function deleteTransaction(id) {
     const { error: deleteError } = await supabase
       .from('transactions')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (deleteError) throw deleteError;
 

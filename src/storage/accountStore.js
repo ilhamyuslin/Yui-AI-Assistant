@@ -8,11 +8,12 @@ const { supabase } = require('./supabaseClient');
 /**
  * Gets all accounts with their current balances.
  */
-async function getAccounts() {
+async function getAccounts(userId) {
   try {
     const { data, error } = await supabase
       .from('accounts')
       .select('*')
+      .eq('user_id', userId) // SECURITY: Only user's accounts
       .order('name', { ascending: true });
 
     if (error) throw error;
@@ -35,12 +36,12 @@ async function upsertAccount(accountData) {
       balance: parseFloat(accountData.balance || 0),
       icon: accountData.icon || '💰',
       updated_at: new Date().toISOString(),
-      user_id: process.env.DEFAULT_USER_ID // Tetap sertakan untuk jaga-jaga server-side call
+      user_id: accountData.user_id // Mandatory from context
     };
 
     const { data, error } = await supabase
       .from('accounts')
-      .upsert(payload, { onConflict: 'name' }) // Penting: Handle duplicate name
+      .upsert(payload, { onConflict: 'user_id, name' }) // Penting: Handle duplicate name per user
       .select()
       .single();
 
@@ -59,9 +60,9 @@ async function upsertAccount(accountData) {
  * Deletes an account by name or ID.
  * @param {Object} criteria - { id, name }
  */
-async function deleteAccount(criteria) {
+async function deleteAccount(criteria, userId) {
   try {
-    let query = supabase.from('accounts').delete().eq('user_id', process.env.DEFAULT_USER_ID);
+    let query = supabase.from('accounts').delete().eq('user_id', userId);
     
     if (criteria.id) {
       query = query.eq('id', criteria.id);

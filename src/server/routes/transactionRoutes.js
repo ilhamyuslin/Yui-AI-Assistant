@@ -19,6 +19,7 @@ router.get('/', async (req, res) => {
     let query = supabase
       .from('transactions')
       .select('*')
+      .eq('user_id', req.user.id)
       .order('transaction_date', { ascending: false });
 
     if (startDate) query = query.gte('transaction_date', dayjs(startDate).startOf('day').toISOString());
@@ -46,7 +47,7 @@ router.get('/stats', async (req, res) => {
   const { period, startDate, endDate, category } = req.query;
 
   try {
-    let query = supabase.from('transactions').select('*');
+    let query = supabase.from('transactions').select('*').eq('user_id', req.user.id);
 
     // Handle string "null" from Axios or actual null/undefined
     const hasStartDate = startDate && startDate !== 'null';
@@ -182,6 +183,7 @@ router.get('/budgets', async (req, res) => {
     const { data: budgetLimits, error: budgetError } = await supabase
       .from('budgets')
       .select('*')
+      .eq('user_id', req.user.id)
       .order('category', { ascending: true });
 
     if (budgetError) throw budgetError;
@@ -201,6 +203,7 @@ router.get('/budgets', async (req, res) => {
     const { data: actuals, error: actualError } = await supabase
       .from('transactions')
       .select('category, amount')
+      .eq('user_id', req.user.id)
       .eq('transaction_type', 'Expense')
       .gte('transaction_date', startRange)
       .lte('transaction_date', endRange);
@@ -253,7 +256,7 @@ router.post('/budgets', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('budgets')
-      .upsert({ category, amount, updated_at: new Date().toISOString() }, { onConflict: 'category' })
+      .upsert({ user_id: req.user.id, category, amount, updated_at: new Date().toISOString() }, { onConflict: 'user_id, category' })
       .select();
 
     if (error) throw error;
@@ -274,6 +277,7 @@ router.delete('/budgets/:category', async (req, res) => {
     const { error } = await supabase
       .from('budgets')
       .delete()
+      .eq('user_id', req.user.id)
       .eq('category', category);
 
     if (error) throw error;
@@ -295,35 +299,29 @@ router.put('/categories/rename', async (req, res) => {
   }
 
   try {
-    const userId = req.headers['x-user-id'] || null;
-
     // 1. Update ALL transactions with this category string
-    const txQuery = supabase
+    const { error: txError } = await supabase
       .from('transactions')
       .update({ category: newName })
+      .eq('user_id', req.user.id)
       .eq('category', oldName);
 
-    if (userId) txQuery.eq('user_id', userId);
-    const { error: txError } = await txQuery;
     if (txError) throw txError;
 
     // 2. Update the budget entry if it exists
-    let budgetCheck = supabase
+    const { data: existingBudget } = await supabase
       .from('budgets')
       .select('*')
-      .eq('category', oldName);
-
-    if (userId) budgetCheck = budgetCheck.eq('user_id', userId);
-    const { data: existingBudget } = await budgetCheck.maybeSingle();
+      .eq('user_id', req.user.id)
+      .eq('category', oldName)
+      .maybeSingle();
 
     if (existingBudget) {
-      let budgetUpdate = supabase
+      const { error: budgetError } = await supabase
         .from('budgets')
         .update({ category: newName, updated_at: new Date().toISOString() })
+        .eq('user_id', req.user.id)
         .eq('category', oldName);
-
-      if (userId) budgetUpdate = budgetUpdate.eq('user_id', userId);
-      const { error: budgetError } = await budgetUpdate;
       if (budgetError) throw budgetError;
     }
 
@@ -354,6 +352,7 @@ router.put('/:id', async (req, res) => {
         source_of_fund
       })
       .eq('id', id)
+      .eq('user_id', req.user.id)
       .select();
 
     if (error) throw error;
@@ -375,7 +374,7 @@ router.delete('/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await deleteTransaction(id);
+    const result = await deleteTransaction(id, req.user.id);
     if (!result.success) {
       return res.status(result.error === 'Transaction not found' ? 404 : 500).json({ error: result.error });
     }
@@ -393,7 +392,7 @@ const { getActiveCategories } = require('../../services/transactionService');
  */
 router.get('/categories', async (req, res) => {
   try {
-    const allCats = await getActiveCategories();
+    const allCats = await getActiveCategories(req.user.id);
     res.json(allCats);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -76,7 +76,7 @@ async function handle(args, ctx, functionName) {
   }
 
   // Default: Get budget status
-  const result = await getBudgets();
+  const result = await getBudgets(null, null, ctx.userId);
   
   if (result.success && result.data) {
     let budgets = result.data;

@@ -27,20 +27,20 @@ const NAV_ITEMS = [
     ],
   },
   {
-    section: 'Bot & Konfigurasi',
+    section: 'Pengaturan',
     items: [
       {
-        to: '/status',
-        label: 'Status',
+        to: '/profile',
+        label: 'Profile Saya',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6" /><path d="M9 12h6" /><path d="M9 15h4" />
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
           </svg>
         ),
       },
       {
         to: '/config',
-        label: 'Konfigurasi',
+        label: 'Sistem AI',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -271,17 +271,6 @@ export default function DashboardLayout() {
             <div className="w-[1px] h-3 bg-slate-200/50" />
             <span className="text-emerald-600/60 font-bold text-[0.55rem] uppercase tracking-widest mt-0.5 whitespace-nowrap overflow-hidden">Financial Dashboard</span>
           </div>
-
-          <button
-            onClick={handleLogout}
-            className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
         </div>
 
         {/* Page content - Scrollable */}
@@ -296,7 +285,7 @@ export default function DashboardLayout() {
           <div className="flex items-center justify-around">
             {(() => {
               const allItems = NAV_ITEMS.flatMap(section => section.items)
-              const mobileItems = [allItems[0], allItems[3], allItems[2]]
+              const mobileItems = [allItems[0], allItems[2], allItems[1]]
 
               return mobileItems.map((item) => (
                 <NavLink
