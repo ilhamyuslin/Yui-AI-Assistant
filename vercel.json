@@ -8,10 +8,6 @@
       "destination": "/api/index.js"
     },
     {
-      "source": "/auth/:path*",
-      "destination": "/api/index.js"
-    },
-    {
       "source": "/assets/:path*",
       "destination": "/assets/:path*"
     },

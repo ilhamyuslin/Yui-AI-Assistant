@@ -28,12 +28,16 @@ export const authApi = {
     return { success: true, user: data.user }
   },
   signInWithGoogle: async () => {
+    const redirectUrl = window.location.origin.includes('localhost') 
+      ? 'http://localhost:5173' 
+      : window.location.origin;
+    
+    console.log('[AuthDebug] Redirecting to:', redirectUrl);
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin.includes('localhost') 
-          ? 'http://localhost:5173' 
-          : window.location.origin
+        redirectTo: redirectUrl
       }
     })
     if (error) throw error
