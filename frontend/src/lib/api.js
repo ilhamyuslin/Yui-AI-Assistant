@@ -28,9 +28,9 @@ export const authApi = {
     return { success: true, user: data.user }
   },
   signInWithGoogle: async () => {
-    const redirectUrl = window.location.origin.includes('localhost') 
+    const redirectUrl = (window.location.origin.includes('localhost') 
       ? 'http://localhost:5173' 
-      : window.location.origin;
+      : window.location.origin).replace(/\/$/, "");
     
     console.log('[AuthDebug] Redirecting to:', redirectUrl);
 
