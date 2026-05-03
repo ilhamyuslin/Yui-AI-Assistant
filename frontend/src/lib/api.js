@@ -31,7 +31,9 @@ export const authApi = {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: window.location.origin.includes('localhost') 
+          ? 'http://localhost:5173' 
+          : window.location.origin
       }
     })
     if (error) throw error
