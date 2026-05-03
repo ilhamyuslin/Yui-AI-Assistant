@@ -205,6 +205,7 @@ router.post('/confirm', async (req, res) => {
     return res.status(400).json({ error: 'Data transaksi tidak ditemukan.' });
   }
 
+  try {
     const userId = req.user.id;
     const result = await saveTransaction({ ...txData, user_id: userId });
 
