@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 
 const { chat } = require('../../ai/gemini');
+const { scanReceipt } = require('../../ai/visionScanner');
 const { getConfig } = require('../../storage/configStore');
 const { getHistory, appendHistory, clearHistory } = require('../../storage/historyStore');
 const { saveTransaction } = require('../../storage/expenseStore');
@@ -44,10 +45,10 @@ router.get('/history', async (req, res) => {
 // ─── POST /api/chat ───────────────────────────────────────────
 // Main chat endpoint. Sends a user message to Gemini and returns AI response.
 router.post('/', async (req, res) => {
-  const { message } = req.body;
+  const { message, image } = req.body;
 
-  if (!message || typeof message !== 'string' || !message.trim()) {
-    return res.status(400).json({ error: 'Pesan tidak boleh kosong.' });
+  if (!image && (!message || typeof message !== 'string' || !message.trim())) {
+    return res.status(400).json({ error: 'Pesan atau gambar tidak boleh kosong.' });
   }
 
   try {
@@ -76,7 +77,7 @@ router.post('/', async (req, res) => {
       if (turn.role === 'model' && text.includes('[PENDING_TX]')) {
         // Hanya beri nomor index untuk draf di pesan PALING BARU supaya AI gak bingung
         const isLastModelMessage = !rawHistory.slice(idx + 1).some(t => t.role === 'model' && t.parts?.[0]?.text?.includes('[PENDING_TX]'));
-        
+
         let draftIdx = 0;
         const cleanText = text.replace(/\[PENDING_TX\]\s*(\{.*\})/g, (match, json) => {
           try {
@@ -90,13 +91,51 @@ router.post('/', async (req, res) => {
       return turn;
     });
 
-    // Fetch actual categories from budgets table
+    // Fetch actual categories & accounts for context
     const { getCategories } = require('../../storage/budgetStore');
-    const catResult = await getCategories(userId);
+    const { getAccounts } = require('../../storage/accountStore');
+    
+    const [catResult, accResult] = await Promise.all([
+      getCategories(userId),
+      getAccounts(userId)
+    ]);
+    
     const categories = catResult.success ? catResult.data : [];
+    const accounts = accResult.success ? accResult.data : [];
 
-    // Send to Gemini with user-specific config
-    const aiResponse = await chat(message.trim(), history, categories, config);
+    // ── HANDLE IMAGE SCANNING (MULTIMODAL) ─────────────────────
+    if (image) {
+      console.log(`[VisionDebug] Processing image from ${userEmail}...`);
+      const scanResult = await scanReceipt(image, message || '', config, categories);
+
+      if (!scanResult.is_valid_receipt) {
+        const msg = "Maaf Bos, gambarnya nggak kayak struk pembayaran. Coba pastiin fotonya jelas ya!";
+        const { total_tokens } = await appendHistory(userId, userName, "[Kirim Gambar]", msg);
+        return res.json({ type: 'TEXT', text: msg, totalTokens: total_tokens });
+      }
+
+      // Convert scan result to the format expected by the frontend
+      const pendingDraft = { ...scanResult, _itemType: 'transaction' };
+      delete pendingDraft.is_valid_receipt;
+
+      const { total_tokens } = await appendHistory(
+        userId,
+        userName,
+        message ? `[Kirim Gambar]: ${message}` : "[Kirim Gambar Struk]",
+        "✅ Struk berhasil di-scan. Silakan cek draf di layar.",
+        0
+      );
+
+      return res.json({
+        type: 'PENDING_MULTI',
+        data: [pendingDraft],
+        text: "Gue udah scan struknya, Bos. Bener nggak datanya?",
+        totalTokens: total_tokens
+      });
+    }
+
+    // ── NORMAL CHAT ──
+    const aiResponse = await chat(message.trim(), history, categories, config, accounts);
 
     // ── Handle Tool Calls ──────────────────────────────────────
     if (aiResponse.functionCalls && aiResponse.functionCalls.length > 0) {
@@ -138,12 +177,6 @@ router.post('/', async (req, res) => {
 
       // Jika ada draf yang terkumpul
       if (pendingDrafts.length > 0) {
-        const draftSummary = pendingDrafts.map(d => {
-          const type = (d._itemType || 'item').toUpperCase();
-          const name = d.item_name || d.name || d.category || 'Transaksi';
-          return `- [DRAF ${type}]: ${name}`;
-        }).join('\n');
-
         // Simpan ke history dengan teks kosong agar AI tidak berhalusinasi menulis ulang draf di chat
         const { total_tokens } = await appendHistory(userId, userName, message.trim(), "", aiResponse.tokensUsed);
 

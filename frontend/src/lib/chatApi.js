@@ -33,10 +33,10 @@ export const chatApi = {
    * Send a user message to AI.
    * Returns: { type: 'TEXT'|'TOOL_RESULT'|'PENDING_TX', text?: string, data?: object }
    */
-  send: (message) =>
+  send: (message, image = null) =>
     apiFetch('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, image }),
     }),
 
   /**

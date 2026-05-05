@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
@@ -98,11 +98,43 @@ export default function DashboardLayout() {
     setShowLogoutModal(true)
   }
 
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight)
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
   const location = useLocation()
   const isDashboard = location.pathname === '/' || location.pathname === '/dashboard'
+  const isChat = location.pathname === '/chat'
+
+  // Detect keyboard visibility and viewport height on mobile
+  useEffect(() => {
+    if (!window.visualViewport) return;
+
+    const handleResize = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      
+      setViewportHeight(vv.height);
+      const isCurrentlyOpen = vv.height < window.innerHeight * 0.85;
+      setIsKeyboardOpen(isCurrentlyOpen);
+
+      // Force no scroll
+      if (isCurrentlyOpen) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.visualViewport.addEventListener('resize', handleResize);
+    window.visualViewport.addEventListener('scroll', handleResize);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('scroll', handleResize);
+    }
+  }, []);
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#fafafa] flex flex-col lg:flex-row">
+    <div 
+      className="fixed inset-x-0 top-0 overflow-hidden bg-[#fafafa] flex flex-col lg:flex-row"
+      style={{ height: `${viewportHeight}px` }}
+    >
 
       {/* ── Premium Light Background ── */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -301,15 +333,25 @@ export default function DashboardLayout() {
           </div>
         </div>
 
-        {/* Page content - Scrollable */}
-        <main className="h-full overflow-y-auto overflow-x-hidden no-scrollbar bg-transparent pt-[71px] pb-16 lg:pt-0 lg:pb-0">
-          <div className="p-6 md:p-10 max-w-[1600px] w-full mx-auto">
+        {/* Page content - Fixed viewport for Chat, Scrollable for others */}
+        <main className={cn(
+          "flex-1 relative min-h-0 bg-transparent lg:pt-0 lg:pb-0 transition-all duration-300 overscroll-none",
+          !isKeyboardOpen ? "pt-[71px] pb-16" : "pt-[71px] pb-0",
+          isChat ? "overflow-hidden" : "overflow-y-auto no-scrollbar"
+        )}>
+          <div className={cn(
+            "max-w-[1600px] w-full mx-auto h-full",
+            !isChat ? "p-6 md:p-10" : "p-0"
+          )}>
             <Outlet />
           </div>
         </main>
 
         {/* ── Mobile Floating Island Navigation ── */}
-        <nav className="lg:hidden fixed bottom-5 left-6 right-6 z-[100] bg-white/70 backdrop-blur-3xl rounded-[2.5rem] px-3 py-2.5 shadow-[0_15px_40px_rgba(0,0,0,0.08)] border border-white/50">
+        <nav className={cn(
+          "lg:hidden fixed bottom-5 left-6 right-6 z-[100] bg-white/70 backdrop-blur-3xl rounded-[2.5rem] px-3 py-2.5 shadow-[0_15px_40px_rgba(0,0,0,0.08)] border border-white/50 transition-all duration-500",
+          isKeyboardOpen ? "translate-y-32 opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
+        )}>
           <div className="flex items-center justify-around">
             {(() => {
               const allItems = NAV_ITEMS.flatMap(section => section.items)

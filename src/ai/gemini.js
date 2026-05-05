@@ -15,7 +15,7 @@ const { getGeminiTools, getCapabilitiesInstruction } = require('./tools/registry
  * @param {Object} config - The user's specific Gemini configuration.
  * @returns {Promise<{ text: string, tokensUsed: number, functionCalls: Array }>}
  */
-async function chat(userMessage, history = [], categories = [], config = {}) {
+async function chat(userMessage, history = [], categories = [], config = {}, accounts = []) {
   if (!config.gemini_api_key) {
     throw new Error('Gemini tidak terkonfigurasi. Harap set API Key di dashboard.');
   }
@@ -29,18 +29,21 @@ async function chat(userMessage, history = [], categories = [], config = {}) {
 - Jam: ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })} WIB
 - Zona Waktu: Asia/Jakarta (UTC+7)`;
 
-  const baseInstruction = (config.system_instruction || 'You are a helpful assistant.') + dateInfo +
+  const accountInfo = accounts.length > 0 
+    ? `\n\nDaftar Akun/Aset yang dimiliki User: ${accounts.map(a => a.name).join(', ')}`
+    : `\n\nUser belum memiliki akun/aset terdaftar.`;
+
+  const baseInstruction = (config.system_instruction || 'You are a helpful assistant.') + dateInfo + accountInfo +
     getCapabilitiesInstruction() +
     '\n\nATURAN EKSEKUSI (WAJIB PATUH):' +
-    '\n1. JANGAN PERNAH bertanya "Apakah data ini benar?" atau merangkum detail transaksi dalam teks manual jika itu adalah transaksi baru. Segera panggil tool request_record_transaction.' +
+    '\n1. JANGAN PERNAH bertanya "Apakah data ini benar?" jika data sudah lengkap. Segera panggil tool yang sesuai.' +
     '\n2. Dilarang keras mengirimkan format tanggal ISO dalam teks balasan. Selalu gunakan format manusiawi.' +
-    '\n3. Jika memanggil tool query (seperti cek saldo/investasi), jangan bicara terlalu banyak sebelum memanggil tool. Panggil dulu, baru jelaskan hasilnya.' +
-    '\n4. Jika data dari database menunjukkan "0" atau "Kosong", sampaikan apa adanya dengan sopan.' +
-    '\n5. ATURAN WAJIB LAPORAN: Jika user menanyakan "pengeluaran hari ini", "minggu ini", atau "bulan ini", kamu HARUS memanggil tool `request_financial_summary`. DILARANG KERAS menghitung manual menggunakan data dari riwayat obrolan (chat history) karena riwayat obrolan tidak mencerminkan perhitungan zona waktu yang akurat!' +
-    '\n6. ATURAN MANAJEMEN DATA: Jika user ingin menambah, mengedit, atau menghapus Akun (Rekening) atau Anggaran (Budget), kamu HARUS memanggil tool yang sesuai (`request_manage_account`, `request_delete_account`, `request_manage_budget`, atau `request_delete_budget`). DILARANG KERAS berhalusinasi atau mengatakan bahwa kamu sudah melakukannya di database jika kamu tidak memanggil tool tersebut!' +
-    '\n7. ATURAN REVISI DRAF: Jika user meminta untuk mengubah atau merevisi draf transaksi yang baru saja muncul di layar, kamu HARUS menyertakan `draft_index` yang sesuai (berdasarkan label [DRAF #X] yang kamu lihat di riwayat chat) saat memanggil kembali tool `request_record_transaction`. Ini akan memperbarui draf lama bukannya membuat draf baru.' +
-    '\n8. ATURAN MULTI-DRAFT: Jika user memberikan instruksi revisi atau tambahan saat draf (modal) sedang terbuka, kamu HARUS tetap memanggil tool yang sesuai (tool call) untuk memperbarui draf tersebut. Jangan hanya menjawab dengan teks.' +
-    '\n9. MANDATORY TOOL CALL: Setiap kali user memberikan perintah aksi (catat, update, hapus), kamu WAJIB memanggil tool tersebut. Jangan pernah berasumsi draf sudah ada hanya karena ada di riwayat chat sebelumnya. User ingin draf BARU atau draf yang TERUPDATE setiap kali mereka bicara.';
+    '\n3. Jika data transaksi TIDAK LENGKAP (misal: nominal atau akun pembayaran belum disebutkan), JANGAN panggil tool. Tanyakan dulu informasinya ke user dengan sopan.' +
+    '\n4. Jika memanggil tool query (seperti cek saldo/investasi), jangan bicara terlalu banyak sebelum memanggil tool. Panggil dulu, baru jelaskan hasilnya.' +
+    '\n5. ATURAN WAJIB LAPORAN: Jika user menanyakan "pengeluaran hari ini", "minggu ini", atau "bulan ini", kamu HARUS memanggil tool `request_financial_summary`. DILARANG KERAS menghitung manual menggunakan data dari riwayat obrolan (chat history)!' +
+    '\n6. ATURAN MANAJEMEN DATA: Jika user ingin menambah, mengedit, atau menghapus Akun atau Anggaran, kamu HARUS memanggil tool yang sesuai. DILARANG KERAS berhalusinasi mengatakan sudah melakukannya tanpa memanggil tool!' +
+    '\n7. Panggil tool `request_record_transaction` HANYA JIKA informasi Nama Item, Nominal, dan Akun Pembayaran (Source of Fund) sudah jelas atau disebutkan oleh user.' +
+    '\n8. VALIDASI AKUN: Sebelum memanggil tool transaksi atau transfer, kamu HARUS memastikan akun yang disebutkan user (Source of Fund atau Destination) ADA dalam "Daftar Akun/Aset" di atas. Jika TIDAK ADA, JANGAN panggil tool. Beritahu user bahwa akun tersebut belum terdaftar dan tanyakan apakah ingin menggunakan akun lain atau membuat akun baru.';
 
 
   /**
