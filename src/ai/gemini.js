@@ -38,8 +38,13 @@ async function chat(userMessage, history = [], categories = [], config = {}) {
     '\n4. Jika data dari database menunjukkan "0" atau "Kosong", sampaikan apa adanya dengan sopan.' +
     '\n5. ATURAN WAJIB LAPORAN: Jika user menanyakan "pengeluaran hari ini", "minggu ini", atau "bulan ini", kamu HARUS memanggil tool `request_financial_summary`. DILARANG KERAS menghitung manual menggunakan data dari riwayat obrolan (chat history) karena riwayat obrolan tidak mencerminkan perhitungan zona waktu yang akurat!' +
     '\n6. ATURAN MANAJEMEN DATA: Jika user ingin menambah, mengedit, atau menghapus Akun (Rekening) atau Anggaran (Budget), kamu HARUS memanggil tool yang sesuai (`request_manage_account`, `request_delete_account`, `request_manage_budget`, atau `request_delete_budget`). DILARANG KERAS berhalusinasi atau mengatakan bahwa kamu sudah melakukannya di database jika kamu tidak memanggil tool tersebut!' +
-    '\n7. ATURAN MULTI-DRAFT: Jika user memberikan instruksi revisi atau tambahan saat draf (modal) sedang terbuka, kamu HARUS tetap memanggil tool yang sesuai (tool call) untuk memperbarui draf tersebut. Jangan hanya menjawab dengan teks.' +
-    '\n8. MANDATORY TOOL CALL: Setiap kali user memberikan perintah aksi (catat, update, hapus), kamu WAJIB memanggil tool tersebut. Jangan pernah berasumsi draf sudah ada hanya karena ada di riwayat chat sebelumnya. User ingin draf BARU atau draf yang TERUPDATE setiap kali mereka bicara.';
+    '\n7. ATURAN REVISI DRAF: Jika user meminta untuk mengubah atau merevisi draf transaksi yang baru saja muncul di layar, kamu HARUS menyertakan `draft_index` yang sesuai (berdasarkan label [DRAF #X] yang kamu lihat di riwayat chat) saat memanggil kembali tool `request_record_transaction`. Ini akan memperbarui draf lama bukannya membuat draf baru.' +
+    '\n8. ATURAN MULTI-DRAFT: Jika user memberikan instruksi revisi atau tambahan saat draf (modal) sedang terbuka, kamu HARUS tetap memanggil tool yang sesuai (tool call) untuk memperbarui draf tersebut. Jangan hanya menjawab dengan teks.' +
+    '\n9. MANDATORY TOOL CALL: Setiap kali user memberikan perintah aksi (catat, update, hapus), kamu WAJIB memanggil tool tersebut. Jangan pernah berasumsi draf sudah ada hanya karena ada di riwayat chat sebelumnya. User ingin draf BARU atau draf yang TERUPDATE setiap kali mereka bicara.';
+
+
+  /**
+   * Never Edit this section of setting, only user who can edit this section **/
 
   const model = genAI.getGenerativeModel({
     model: config.gemini_model || 'gemma-4-26b-a4b-it',
@@ -50,7 +55,7 @@ async function chat(userMessage, history = [], categories = [], config = {}) {
   const chatSession = model.startChat({
     history,
     generationConfig: {
-      temperature: 0.2,
+      temperature: 0.5,
       topK: 40,
       topP: 0.95,
       maxOutputTokens: 2048,

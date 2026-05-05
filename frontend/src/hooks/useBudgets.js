@@ -1,84 +1,59 @@
-import { useState, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { statsApi } from '@/lib/api'
 
 /**
- * Hook to manage financial budgets: fetching, updating, and loading states.
+ * Hook to manage financial budgets with TanStack Query.
  */
-export function useBudgets() {
-  const [budgets, setBudgets] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+export function useBudgets(params = {}) {
+  const queryClient = useQueryClient()
 
-  const fetch = useCallback(async (params = {}) => {
-    setLoading(true)
-    setError(null)
-    console.log('[useBudgets] Fetching with params:', params)
-    try {
+  // 1. Query for Data
+  const query = useQuery({
+    queryKey: ['budgets', params],
+    queryFn: async () => {
       const { data } = await statsApi.getBudgets(params)
-      console.log('[useBudgets] Data received:', data?.length, 'items')
-      setBudgets(data || [])
-    } catch (err) {
-      console.error('[useBudgets] Error:', err)
-      setError(err.message)
-      setBudgets([])
-    } finally {
-      setLoading(false)
+      return data || []
     }
-  }, [])
+  })
 
-  const update = useCallback(async (category, amount, behavior_group) => {
-    setLoading(true)
-    try {
-      await statsApi.updateBudget({ 
+  // 2. Mutations
+  const updateMutation = useMutation({
+    mutationFn: async ({ category, amount, behavior_group }) => {
+      return await statsApi.updateBudget({ 
         category, 
         amount: parseFloat(amount) || 0,
         behavior_group: behavior_group || 'Want'
       })
-      return true
-    } catch (err) {
-      console.error('[useBudgets] Update error:', err)
-      setError(err.message)
-      return false
-    } finally {
-      setLoading(false)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] }) // Budget berubah pengaruhi analisis
     }
-  }, [])
+  })
 
-  const remove = useCallback(async (category) => {
-    setLoading(true)
-    try {
-      await statsApi.deleteBudget(category)
-      return true
-    } catch (err) {
-      console.error('[useBudgets] Delete error:', err)
-      setError(err.message)
-      return false
-    } finally {
-      setLoading(false)
+  const removeMutation = useMutation({
+    mutationFn: (category) => statsApi.deleteBudget(category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
     }
-  }, [])
+  })
 
-  const rename = useCallback(async (oldName, newName) => {
-    setLoading(true)
-    try {
-      await statsApi.renameCategory(oldName, newName)
-      return true
-    } catch (err) {
-      console.error('[useBudgets] Rename error:', err)
-      setError(err.message)
-      return false
-    } finally {
-      setLoading(false)
+  const renameMutation = useMutation({
+    mutationFn: ({ oldName, newName }) => statsApi.renameCategory(oldName, newName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
     }
-  }, [])
+  })
 
   return {
-    budgets,
-    loading,
-    error,
-    fetch,
-    update,
-    remove,
-    rename
+    budgets: query.data || [],
+    loading: query.isLoading,
+    error: query.error,
+    fetch: query.refetch,
+    update: updateMutation.mutateAsync,
+    remove_budget: removeMutation.mutateAsync, // Samain key-nya sama Overview.jsx
+    rename: renameMutation.mutateAsync
   }
 }

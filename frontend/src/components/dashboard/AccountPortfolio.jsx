@@ -14,12 +14,26 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
   const [editTarget, setEditTarget] = useState(null)
   const scrollRef = useRef(null)
 
-  const formatCurrency = (val) => {
-    return new Intl.NumberFormat('id-ID', {
+  const renderFormattedCurrency = (val, largeSize = "text-3xl", smallSize = "text-lg", colorClass = "text-white") => {
+    if (!val && val !== 0) return '–'
+    const formatted = new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
     }).format(val)
+    
+    // Pisahkan: Rp [AngkaDepan] [Sisanya]
+    const match = formatted.match(/^(Rp\s?)(\d+)(.*)$/)
+    if (!match) return formatted
+
+    const [, prefix, main, rest] = match
+    return (
+      <span className="inline-flex items-baseline tracking-tighter">
+        <span className={cn("font-black opacity-50 mr-0.5", smallSize, colorClass)}>{prefix}</span>
+        <span className={cn("font-black", largeSize, colorClass)}>{main}</span>
+        <span className={cn("font-bold opacity-70", smallSize, colorClass)}>{rest}</span>
+      </span>
+    )
   }
 
   return (
@@ -31,7 +45,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
           <p className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Ringkasan kekayaan kamu</p>
         </div>
         <button
-          onClick={() => setModalOpen(true)}
+          onClick={() => { setEditTarget(null); setModalOpen(true) }}
           className="flex items-center gap-2 px-4 md:px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-2xl font-bold text-xs shadow-sm transition-all active:scale-95 group"
         >
           <Settings2 size={14} className="group-hover:rotate-90 transition-transform duration-500 shrink-0" />
@@ -52,9 +66,11 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Total Aset</span>
             </div>
 
-            <span className="block text-3xl font-black text-white tracking-tighter mb-1">
-              {loading ? '...' : formatCurrency(totalAssets)}
-            </span>
+            <div className="mb-1">
+              {loading ? (
+                <span className="block text-3xl font-black text-white/20 animate-pulse">Rp...</span>
+              ) : renderFormattedCurrency(totalAssets, "text-3xl", "text-lg", "text-white")}
+            </div>
             <div className="flex items-center gap-2">
               <div className="px-2 py-0.5 bg-emerald-500/10 rounded-md">
                 <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Terkonsolidasi</span>
@@ -63,7 +79,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
           </div>
         </div>
 
-        {/* 2. SLIDER CONTAINER - Use negative margin to pull the slider to the edges so the first card aligns with the card above */}
+        {/* 2. SLIDER CONTAINER */}
         <div className="flex-1 min-w-0 relative -mx-8">
           {/* Edge Fades for Premium look */}
           <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#f8fafc] to-transparent z-10 pointer-events-none" />
@@ -83,7 +99,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
               .no-scrollbar::-webkit-scrollbar { display: none; }
             `}} />
 
-            {/* ACCOUNT CARDS - Centered with p-6 for breathing room */}
+            {/* ACCOUNT CARDS */}
             {!loading && accounts.map(acc => (
               <div
                 key={acc.id}
@@ -101,9 +117,9 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
 
                 <div className="space-y-0.5">
                   <span className="block text-[11px] font-black text-slate-400 uppercase tracking-widest">{acc.name}</span>
-                  <span className="block text-xl font-black text-slate-800 tracking-tight">
-                    {formatCurrency(acc.balance)}
-                  </span>
+                  <div className="block">
+                    {renderFormattedCurrency(acc.balance, "text-xl", "text-xs", "text-slate-800")}
+                  </div>
                 </div>
 
                 {/* Hover Actions */}
@@ -126,7 +142,7 @@ export default function AccountPortfolio({ accounts, totalAssets, loading, onUpd
 
             {/* ADD SHORTHAND */}
             <button
-              onClick={() => setModalOpen(true)}
+              onClick={() => { setEditTarget(null); setModalOpen(true) }}
               className="min-w-[240px] bg-slate-50/40 border-2 border-dashed border-slate-200 rounded-[2.5rem] p-6 flex flex-col items-center justify-center gap-3 text-slate-300 hover:border-emerald-200 hover:bg-emerald-50/50 hover:text-emerald-500 transition-all group shrink-0"
             >
               <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform">

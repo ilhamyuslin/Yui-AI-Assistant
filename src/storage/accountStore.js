@@ -41,7 +41,7 @@ async function upsertAccount(accountData) {
 
     const { data, error } = await supabase
       .from('accounts')
-      .upsert(payload, { onConflict: 'user_id, name' }) // Penting: Handle duplicate name per user
+      .upsert(payload, { onConflict: 'user_id,name' }) // Penting: Handle duplicate name per user
       .select()
       .single();
 

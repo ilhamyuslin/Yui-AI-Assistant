@@ -270,7 +270,7 @@ router.post('/budgets', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('budgets')
-      .upsert({ user_id: req.user.id, category, amount, updated_at: new Date().toISOString() }, { onConflict: 'user_id, category' })
+      .upsert({ user_id: req.user.id, category, amount, updated_at: new Date().toISOString() }, { onConflict: 'user_id,category' })
       .select();
 
     if (error) throw error;
@@ -400,17 +400,5 @@ router.delete('/:id', async (req, res) => {
 
 
 
-/**
- * GET /api/transactions/categories
- * Fetch the master list of active categories (Budgets + Transactions).
- */
-router.get('/categories', async (req, res) => {
-  try {
-    const allCats = await getActiveCategories(req.user.id);
-    res.json(allCats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 module.exports = router;

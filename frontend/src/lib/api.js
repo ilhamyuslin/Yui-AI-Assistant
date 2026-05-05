@@ -23,7 +23,14 @@ export const authApi = {
     return { success: true, user: data.user }
   },
   signUp: async (email, password) => {
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const redirectUrl = window.location.origin;
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        emailRedirectTo: redirectUrl
+      }
+    })
     if (error) throw error
     return { success: true, user: data.user }
   },
@@ -59,7 +66,6 @@ export const statsApi = {
     if (!user) throw new Error('Unauthorized')
 
     const { data, error } = await supabase.rpc('get_financial_dashboard_stats', {
-      p_user_id: user.id,
       p_start_date: startDate,
       p_end_date: endDate,
       p_categories: category && category.length > 0 ? category : null
@@ -116,7 +122,7 @@ export const statsApi = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: updated, error } = await supabase
       .from('budgets')
-      .upsert({ ...data, user_id: user?.id }, { onConflict: 'category' })
+      .upsert({ ...data, user_id: user?.id }, { onConflict: 'user_id,category' })
       .select()
       .single()
 
@@ -125,21 +131,29 @@ export const statsApi = {
   },
 
   deleteBudget: async (category) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
     const { error } = await supabase
       .from('budgets')
       .delete()
       .eq('category', category)
+      .eq('user_id', user.id)
 
     if (error) throw error
     return { success: true }
   },
 
   renameCategory: async (oldName, newName) => {
-    // Rename in transactions and budgets
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    // Rename in transactions and budgets for this specific user
     const { error: txError } = await supabase
       .from('transactions')
       .update({ category: newName })
       .eq('category', oldName)
+      .eq('user_id', user.id)
 
     if (txError) throw txError
 
@@ -147,6 +161,7 @@ export const statsApi = {
       .from('budgets')
       .update({ category: newName })
       .eq('category', oldName)
+      .eq('user_id', user.id)
 
     if (bgError) throw bgError
     return { success: true }
@@ -283,7 +298,6 @@ export const transactionApi = {
     if (userError || !user) throw new Error('Unauthorized')
 
     const { data: result, error } = await supabase.rpc('record_manual_transaction', {
-      p_user_id: user.id,
       p_type: data.transaction_type,
       p_amount: data.amount,
       p_item_name: data.item_name,
@@ -362,6 +376,37 @@ export const configApi = {
   },
 
   testGemini: () => Promise.resolve({ data: { response: 'Test mode: Direct Supabase can not test Gemini directly. Please use API server.' } }),
+}
+
+// ─── Profile ──────────────────────────────────────────────────
+export const profileApi = {
+  get: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (error) throw error
+    return { data }
+  },
+  update: async (updates) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+    return { data }
+  }
 }
 
 // ─── Whitelist ────────────────────────────────────────────────
@@ -443,58 +488,6 @@ export const accountApi = {
   },
 }
 
-// ─── Bot / Status (Real Data from Supabase) ──────────────────
-export const botApi = {
-  getStatus: async () => {
-    const { data, error } = await supabase
-      .from('bot_status')
-      .select('*')
-      .eq('id', 1)
-      .single()
-
-    if (error) throw error
-
-    // Cek apakah heartbeat masih segar (kurang dari 2 menit)
-    const lastHeartbeat = new Date(data.last_heartbeat)
-    const now = new Date()
-    const diffMinutes = (now - lastHeartbeat) / 1000 / 60
-
-    const isOffline = diffMinutes > 2
-
-    return {
-      data: {
-        status: isOffline ? 'stopped' : data.status,
-        node_version: data.node_version || 'N/A',
-        uptime: isOffline ? 'Offline' : (data.uptime || '00:00:00'),
-        memory: isOffline ? '0 MB' : (data.memory_usage || '0 MB'),
-        mode: isOffline ? 'N/A' : (data.bot_mode || 'Polling'),
-        api_latency: isOffline ? 'N/A' : '15ms',
-        bot_info: { first_name: 'Yui AI' },
-        db_status: { state: 'connected', host: 'Supabase' },
-        last_seen: data.last_heartbeat
-      }
-    }
-  },
-  start: () => Promise.resolve(), // Bot control needs local server access, stubs for now
-  stop: () => Promise.resolve(),
-  restart: async () => {
-    // Ambil user_id dari auth
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Harus login untuk restart bot')
-
-    // Kirim perintah ke antrian
-    const { error } = await supabase
-      .from('bot_commands')
-      .insert([{
-        user_id: user.id,
-        command: 'restart',
-        status: 'pending'
-      }])
-
-    if (error) throw error
-    return { success: true }
-  },
-}
 
 // ─── Investments ──────────────────────────────────────────────
 export const investmentApi = {

@@ -1,88 +1,88 @@
-// v2.1 stable - final check
-import { useState, useCallback } from 'react'
+// v3.0 - TanStack Query Integrated
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
-import { statsApi, transactionApi, accountApi, configApi } from '@/lib/api'
+import { statsApi, transactionApi } from '@/lib/api'
 
 dayjs.extend(isoWeek)
 
 /**
- * useStats — fetch aggregated financial stats for a date range.
+ * useStats — fetch aggregated financial stats with caching.
  */
-export function useStats() {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-
-  const fetch = useCallback(async (startDate, endDate, categories = []) => {
-    setLoading(true)
-    setError(null)
-    console.log('[useStats] Fetching:', startDate, 'to', endDate, 'Categories:', categories)
-    try {
+export function useStats(startDate, endDate, categories = []) {
+  return useQuery({
+    queryKey: ['stats', startDate, endDate, categories],
+    queryFn: async () => {
       const { data } = await statsApi.get(startDate, endDate, categories)
-      console.log('[useStats] Data received:', data)
-      setStats(data)
-    } catch (err) {
-      console.error('[useStats] Error:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  return { stats, loading, error, fetch }
+      return data
+    },
+    enabled: startDate !== undefined && endDate !== undefined, // Tetap jalankan meski null (untuk filter 'All')
+  })
 }
 
 /**
- * useTransactions — fetch transaction list with optional filters.
+ * useTransactions — fetch transaction list with caching and mutations.
  */
-export function useTransactions() {
-  const [transactions, setTransactions] = useState([])
-  const [loading, setLoading] = useState(false)
+export function useTransactions(params = {}) {
+  const queryClient = useQueryClient()
 
-  const fetch = useCallback(async (params = {}) => {
-    setLoading(true)
-    console.log('[useTransactions] Fetching with params:', params)
-    try {
+  // 1. Query for Data
+  const query = useQuery({
+    queryKey: ['transactions', params],
+    queryFn: async () => {
       const { data } = await transactionApi.getAll(params)
-      console.log('[useTransactions] Data received:', data?.length, 'items')
-      setTransactions(data)
-    } catch (err) {
-      console.error('[useTransactions] Error:', err)
-      setTransactions([])
-    } finally {
-      setLoading(false)
+      return data
     }
-  }, [])
+  })
 
-  const remove = useCallback(async (id) => {
-    await transactionApi.delete(id)
-    setTransactions(prev => prev.filter(t => t.id !== id))
-    // Trigger global refresh for other components (like accounts balance)
-    window.dispatchEvent(new CustomEvent('transaction-saved'))
-  }, [])
+  // 2. Mutations
+  const addMutation = useMutation({
+    mutationFn: (data) => transactionApi.create(data),
+    onSuccess: () => {
+      // Refresh semua data yang terpengaruh oleh transaksi baru
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    }
+  })
 
-  const update = useCallback(async (id, data) => {
-    const { data: updated } = await transactionApi.update(id, data)
-    setTransactions(prev => prev.map(t => t.id === id ? updated : t))
-  }, [])
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => transactionApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    }
+  })
 
-  const add = useCallback(async (data) => {
-    const { data: result } = await transactionApi.create(data)
-    return result
-  }, [])
+  const deleteMutation = useMutation({
+    mutationFn: (id) => transactionApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['stats'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    }
+  })
 
-  return { transactions, loading, fetch, remove, update, add }
+  return {
+    transactions: query.data || [],
+    loading: query.isLoading,
+    error: query.error,
+    refresh: query.refetch,
+    add: addMutation.mutateAsync,
+    update: updateMutation.mutateAsync,
+    remove: deleteMutation.mutateAsync,
+    isMutating: addMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+  }
 }
 
 /**
  * Helper to get the actual payday adjusted for weekends (last working day)
  */
-function getActualPayday(date, payDay) {
-  let d = date.date(payDay)
-  // Ensure we don't overflow the month (e.g. Feb 30)
+export function getActualPayday(date, payDay) {
+  let d = dayjs(date).date(payDay)
   if (d.date() !== payDay && payDay > 28) {
-    d = date.endOf('month')
+    d = dayjs(date).endOf('month')
   }
 
   const dayOfWeek = d.day() // 0 = Sunday, 6 = Saturday
@@ -106,7 +106,6 @@ export function getQuickFilterRange(filter, payDay = 25) {
       }
     case 'cycle': {
       let start, end
-
       const currentPayday = getActualPayday(today, payDay)
 
       if (today.isBefore(currentPayday, 'day')) {

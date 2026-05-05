@@ -2,13 +2,11 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { configApi } from '@/lib/api'
+import { useConfig } from '@/hooks/useConfig'
 
 const GEMINI_MODELS = [
-  'gemini-3.1-pro',
-  'gemini-3.1-flash',
-  'gemini-3.1-flash-lite',
-  'gemma-4-31b',
   'gemma-4-26b-a4b-it',
+  'gemma-4-31b-it',
 ]
 
 function InputField({ label, id, type = 'text', value, onChange, placeholder, hint, rows, className }) {
@@ -29,9 +27,7 @@ function InputField({ label, id, type = 'text', value, onChange, placeholder, hi
 
 
 export default function Config() {
-  const [config, setConfig] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const { config, loading, isSaving, update } = useConfig()
   const [testingGemini, setTestingGemini] = useState(false)
   const [isEditingGemma, setIsEditingGemma] = useState(false)
   const [testResultGemma, setTestResultGemma] = useState(null)
@@ -43,18 +39,15 @@ export default function Config() {
   })
 
   useEffect(() => {
-    configApi.get().then(({ data }) => {
-      setConfig(data)
+    if (config) {
       setForm({
-        gemini_api_key: data.gemini_api_key || '',
-        gemini_model: data.gemini_model || '',
-        system_instruction: data.system_instruction || '',
+        gemini_api_key: config.gemini_api_key || '',
+        gemini_model: config.gemini_model || '',
+        system_instruction: config.system_instruction || '',
       })
-      if (data.gemini_api_key) setIsEditingGemma(false)
-    }).catch(() => {
-      toast.error('Gagal memuat konfigurasi')
-    }).finally(() => setLoading(false))
-  }, [])
+      if (config.gemini_api_key) setIsEditingGemma(false)
+    }
+  }, [config])
 
   const set = (key) => (e) => {
     setForm(f => ({ ...f, [key]: e.target.value }))
@@ -62,15 +55,12 @@ export default function Config() {
   }
 
   const handleSave = async () => {
-    setSaving(true)
     try {
-      await configApi.update(form)
+      await update(form)
       toast.success('Konfigurasi AI berhasil diperbarui.')
       setIsEditingGemma(false)
     } catch (err) {
       toast.error('Gagal menyimpan konfigurasi')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -108,7 +98,7 @@ export default function Config() {
         <div className="flex flex-wrap items-center gap-4 min-w-0">
           <div>
             <h1 className="text-2xl sm:text-3xl lg:text-[2.5rem] font-black text-slate-900 tracking-tight leading-none mb-2">
-              Sistem AI
+              Konfigurasi AI
             </h1>
             <p className="text-slate-500 text-[11px] sm:text-sm font-medium uppercase tracking-wider">
               Konfigurasi Engine & Keamanan
@@ -121,11 +111,11 @@ export default function Config() {
       <div className="sticky top-[0.5rem] z-40 mx-0 px-2 py-2 mb-8 bg-white/70 backdrop-blur-3xl rounded-full border border-white/50 shadow-lg flex items-center justify-end lg:static lg:bg-transparent lg:backdrop-blur-none lg:border-none lg:shadow-none lg:p-0 lg:m-0 lg:mb-10 lg:z-auto">
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={isSaving || loading}
           className="w-full lg:w-auto flex items-center justify-center gap-3 px-8 py-3 sm:py-4 rounded-full text-xs font-black text-white transition-all disabled:opacity-60 hover:opacity-90 hover:shadow-2xl hover:shadow-emerald-500/30 active:scale-95 flex-shrink-0 shadow-xl shadow-emerald-500/20"
           style={{ background: 'linear-gradient(135deg, #0f766e, #10b981)' }}
         >
-          {saving ? (
+          {isSaving ? (
             <span className="flex items-center gap-3">
               <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               MENYIMPAN...
@@ -148,7 +138,7 @@ export default function Config() {
         </div>
       ) : (
         <div className="animate-fade-in flex flex-col gap-8">
-          
+
           {/* Card AI Engine */}
           <div className="bg-white/60 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden">
             <div className="px-5 sm:px-8 py-5 sm:py-6 border-b border-white/60 bg-white/40 flex items-center gap-4 sm:gap-5">

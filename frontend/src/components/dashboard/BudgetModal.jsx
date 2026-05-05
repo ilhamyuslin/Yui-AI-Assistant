@@ -245,13 +245,19 @@ export default function BudgetModal({ open, onOpenChange, budgets, onSave, onRem
                         key={b.id}
                         onClick={() => handleBehaviorChange(category, b.id)}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-[10px] font-black transition-all",
+                          "relative group/tooltip px-3 py-1.5 rounded-lg text-[10px] font-black transition-all",
                           localBehaviors[category] === b.id 
                             ? `${b.color} text-white shadow-lg shadow-${b.id === 'Must' ? 'indigo' : b.id === 'Need' ? 'teal' : b.id === 'Want' ? 'rose' : 'amber'}-500/20`
                             : "text-slate-400 hover:text-slate-600"
                         )}
                       >
                         {b.label}
+                        
+                        {/* Tooltip Popup */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-slate-900 text-white text-[9px] font-bold rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-all duration-200 transform translate-y-1 group-hover/tooltip:translate-y-0 shadow-xl z-50 whitespace-nowrap">
+                          {b.full}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-[4px] border-transparent border-t-slate-900" />
+                        </div>
                       </button>
                     ))}
                   </div>

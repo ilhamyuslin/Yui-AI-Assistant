@@ -7,6 +7,7 @@ import { useBudgets } from '@/hooks/useBudgets'
 import MetricCards from '@/components/dashboard/MetricCards'
 import TrendChart from '@/components/dashboard/TrendChart'
 import BudgetMonitor from '@/components/dashboard/BudgetMonitor'
+import PaceIndicator from '@/components/dashboard/PaceIndicator'
 import BudgetModal from '@/components/dashboard/BudgetModal'
 import AccountPortfolio from '@/components/dashboard/AccountPortfolio'
 import ExpenseCategoryChart from '@/components/dashboard/ExpenseCategoryChart'
@@ -18,7 +19,7 @@ const TransactionModal = lazy(() => import('@/components/dashboard/TransactionMo
 import { useAccounts } from '@/hooks/useAccounts'
 import { useInvestments } from '@/hooks/useInvestments'
 import { configApi, statsApi } from '@/lib/api'
-import { Check, Tag, Calendar, X, PieChart, LayoutList, Plus } from 'lucide-react'
+import { Check, Tag, Calendar, X, PieChart, LayoutList, Plus, Loader2 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import InvestmentSection from '@/components/dashboard/InvestmentSection'
 import GoalsSection from '@/components/dashboard/GoalsSection'
@@ -46,53 +47,51 @@ export default function Overview() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deleteConfig, setDeleteConfig] = useState({ id: null, type: 'transaction' })
   const [allCategories, setAllCategories] = useState([])
+  const [pullDistance, setPullDistance] = useState(0)
 
   const touchStartRef = useRef(0)
+  const startYRef = useRef(0)
 
-  const { stats, loading: statsLoading, fetch: fetchStats, error: statsError } = useStats()
-  const { stats: trendStats, loading: trendLoading, fetch: fetchTrendStats } = useStats()
-  const { stats: stableStats, loading: stableStatsLoading, fetch: fetchStableStats } = useStats()
-  const { transactions, loading: txLoading, fetch: fetchTx, error: txError, remove, update, add } = useTransactions()
-  const { budgets, loading: budgetLoading, fetch: fetchBudgets, update: updateBudget, remove_budget: removeBudget, rename: renameBudget } = useBudgets()
+  const cycleRange = useMemo(() => getQuickFilterRange('cycle', payDay), [payDay])
+  const strictRange = useMemo(() => {
+    if (activeFilter === 'today') {
+      return {
+        startDate: dayjs().format('YYYY-MM-DD'),
+        endDate: dayjs().format('YYYY-MM-DD')
+      }
+    }
+    return dateRange
+  }, [activeFilter, dateRange])
+
+  const statsQuery = useStats(strictRange?.startDate, strictRange?.endDate, selectedCategories)
+  const trendQuery = useStats(dateRange?.startDate, dateRange?.endDate, selectedCategories)
+  const stableQuery = useStats(cycleRange.startDate, cycleRange.endDate)
+  
+  const { transactions, loading: txLoading, error: txError, refresh: refreshTx, remove, update, add } = useTransactions({ 
+    startDate: strictRange?.startDate, 
+    endDate: strictRange?.endDate, 
+    category: selectedCategories 
+  })
+  
+  const { budgets, loading: budgetLoading, update: updateBudget, remove_budget: removeBudget, rename: renameBudget, fetch: refreshBudgets } = useBudgets({ 
+    startDate: cycleRange.startDate, 
+    endDate: cycleRange.endDate 
+  })
+  
   const { accounts, totalAssets, loading: accountLoading, upsertAccount, deleteAccount, refresh: refreshAccounts } = useAccounts()
-  const { investments, totalPortfolio, totalCost, loading: investLoading, fetch: fetchInvestments, add: addInvestment, update: updateInvestment, remove: removeInvestment } = useInvestments()
+  const { investments, totalPortfolio, totalCost, loading: investLoading, add: addInvestment, update: updateInvestment, remove: removeInvestment, fetch: refreshInvestments } = useInvestments()
+
+  const stats = statsQuery.data
+  const statsLoading = statsQuery.isLoading
+  const statsError = statsQuery.error
+  const trendStats = trendQuery.data
+  const trendLoading = trendQuery.isLoading
+  const stableStats = stableQuery.data
+  const stableStatsLoading = stableQuery.isLoading
 
   const loading = statsLoading || txLoading || budgetLoading || accountLoading || stableStatsLoading
   const error = statsError || txError
 
-  const loadAll = useCallback(async (range, categories = [], filterKey) => {
-    const cycleRange = getQuickFilterRange('cycle', payDay)
-
-    // For components that should ONLY show today (Stats, Behavior, History)
-    let strictRange = range
-    if (filterKey === 'today') {
-      strictRange = {
-        startDate: dayjs().startOf('day').toISOString(),
-        endDate: dayjs().endOf('day').toISOString()
-      }
-    }
-
-    await Promise.all([
-      fetchStats(strictRange?.startDate, strictRange?.endDate, categories),
-      fetchTrendStats(range?.startDate, range?.endDate, categories), // Original range for Trend
-      fetchStableStats(cycleRange.startDate, cycleRange.endDate),
-      fetchTx({ startDate: strictRange?.startDate, endDate: strictRange?.endDate, category: categories }),
-      fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate }),
-      refreshAccounts(),
-      fetchInvestments(),
-    ])
-  }, [fetchStats, fetchTrendStats, fetchStableStats, fetchTx, fetchBudgets, refreshAccounts, fetchInvestments, payDay])
-
-  // Refresh data if global transaction is saved
-  useEffect(() => {
-    const handleGlobalRefresh = () => {
-      loadAll(dateRange, selectedCategories, activeFilter)
-    }
-    window.addEventListener('transaction-saved', handleGlobalRefresh)
-    return () => window.removeEventListener('transaction-saved', handleGlobalRefresh)
-  }, [loadAll, dateRange, selectedCategories, activeFilter])
-
-  // Initial loads
   useEffect(() => {
     async function init() {
       try {
@@ -103,25 +102,21 @@ export default function Overview() {
         const pd = cycleData.payDay || 25
         setPayDay(pd)
         setAllCategories(catData || [])
-
-        // Update range with actual payday
+        
         const initialRange = getQuickFilterRange('cycle', pd)
         setDateRange(initialRange)
-        loadAll(initialRange, [], 'cycle')
       } catch (err) {
         console.error('Failed to init filters:', err)
-        loadAll(dateRange, [], activeFilter)
       }
     }
     init()
-  }, []) // Run once on mount
+  }, [])
 
   const handleQuickFilter = (key) => {
     setActiveFilter(key)
     const range = getQuickFilterRange(key, payDay)
     setDateRange(range)
-    setCustomRange({ start: '', end: '' }) // Reset custom range
-    loadAll(range, selectedCategories, key)
+    setCustomRange({ start: '', end: '' })
   }
 
   const handleFilterTouchStart = (e) => {
@@ -139,29 +134,58 @@ export default function Overview() {
     }
   }
 
+  const handleTouchStartGlobal = (e) => {
+    if (window.scrollY === 0) {
+      startYRef.current = e.touches[0].clientY
+    }
+  }
+
+  const handleTouchMoveGlobal = (e) => {
+    if (startYRef.current > 0 && window.scrollY === 0) {
+      const diff = e.touches[0].clientY - startYRef.current
+      if (diff > 0) {
+        const dist = Math.min(diff * 0.4, 120)
+        setPullDistance(dist)
+      }
+    }
+  }
+
+  const handleTouchEndGlobal = () => {
+    if (pullDistance > 70 && !isRefreshing) {
+      handleRefresh()
+    }
+    setPullDistance(0)
+    startYRef.current = 0
+  }
+
   const handleCategoryToggle = (cat) => {
-    const newCats = selectedCategories.includes(cat)
-      ? selectedCategories.filter(c => c !== cat)
-      : [...selectedCategories, cat]
-    setSelectedCategories(newCats)
-    loadAll(dateRange, newCats, activeFilter)
+    setSelectedCategories(prev => 
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    )
   }
 
   const handleApplyCustomDate = () => {
     if (!customRange.start || !customRange.end) return
     setActiveFilter('custom')
     const range = {
-      startDate: dayjs(customRange.start).startOf('day').toISOString(),
-      endDate: dayjs(customRange.end).endOf('day').toISOString()
+      startDate: dayjs(customRange.start).format('YYYY-MM-DD'),
+      endDate: dayjs(customRange.end).format('YYYY-MM-DD')
     }
     setDateRange(range)
-    loadAll(range, selectedCategories, 'custom')
   }
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
-      await loadAll(dateRange, selectedCategories, activeFilter)
+      await Promise.all([
+        statsQuery.refetch(),
+        trendQuery.refetch(),
+        stableQuery.refetch(),
+        refreshTx(),
+        refreshBudgets(),
+        refreshAccounts(),
+        refreshInvestments()
+      ])
       toast.success('Data diperbarui')
     } catch (err) {
       toast.error('Gagal memperbarui data')
@@ -188,14 +212,12 @@ export default function Overview() {
       if (type === 'transaction') {
         await remove(id)
         toast.success('Transaksi dihapus')
-      } else {
-        const result = await deleteAccount(id)
-        if (result.success) {
-          toast.success('Akun berhasil dihapus')
-          refreshAccounts()
-        } else {
-          toast.error('Gagal menghapus akun: ' + (result.error || 'Unknown error'))
-        }
+      } else if (type === 'account') {
+        await deleteAccount(id)
+        toast.success('Akun berhasil dihapus')
+      } else if (type === 'investment') {
+        await removeInvestment(id)
+        toast.success('Investasi berhasil dihapus')
       }
     } catch (err) {
       toast.error('Terjadi kesalahan saat menghapus data')
@@ -207,31 +229,23 @@ export default function Overview() {
 
   const handleUpdate = async (id, data) => {
     try {
-      await update(id, data)
-      fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
+      await update({ id, data })
       toast.success('Transaksi diperbarui')
     } catch (err) {
       toast.error('Gagal memperbarui transaksi')
     }
   }
 
-  // Build category breakdown for donut-style list
-  const categoryEntries = stats?.categories
-    ? Object.entries(stats.categories).sort((a, b) => b[1] - a[1])
-    : []
-
-  // Aggregate Behavior Data (Must, Need, Want, Saving)
   const behaviorStats = useMemo(() => {
     const totals = { Must: 0, Need: 0, Want: 0, Saving: 0 }
     if (!stats?.categories) return totals
 
     Object.entries(stats.categories).forEach(([cat, amount]) => {
       const actualAmount = Math.abs(amount || 0)
-      if (actualAmount <= 0) return // Skip categories with no spending
+      if (actualAmount <= 0) return 
 
-      // Find mapping from budgets
       const budget = budgets.find(b => b.category === cat)
-      const group = budget?.behavior_group || 'Want' // Default to Want for 'wild' spending
+      const group = budget?.behavior_group || 'Want' 
 
       if (totals[group] !== undefined) {
         totals[group] += actualAmount
@@ -240,7 +254,6 @@ export default function Overview() {
     return totals
   }, [stats, budgets])
 
-  // Calculate Budgeted Behavior Distribution (Target)
   const behaviorBudgets = useMemo(() => {
     const totals = { Must: 0, Need: 0, Want: 0, Saving: 0 }
     if (!budgets) return totals
@@ -255,10 +268,17 @@ export default function Overview() {
     return totals
   }, [budgets])
 
+  const { totalBudget, totalActual } = useMemo(() => {
+    return (budgets || []).reduce((acc, b) => {
+      acc.totalBudget += (parseFloat(b.amount) || 0)
+      acc.totalActual += (parseFloat(b.actual) || 0)
+      return acc
+    }, { totalBudget: 0, totalActual: 0 })
+  }, [budgets])
+
   const totalExpense = stats?.total_expense || 0
   const CATEGORY_COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#0ea5e9', '#6366f1', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6']
 
-  // Compute dynamic dates for the UI pill
   let displayStart = dateRange.startDate;
   let displayEnd = dateRange.endDate;
   let isDynamicLoading = false;
@@ -276,7 +296,29 @@ export default function Overview() {
   }
 
   return (
-    <div className="relative w-full">
+    <div 
+      className="relative w-full"
+      onTouchStart={handleTouchStartGlobal}
+      onTouchMove={handleTouchMoveGlobal}
+      onTouchEnd={handleTouchEndGlobal}
+    >
+      {/* Pull to Refresh Indicator */}
+      <div 
+        className={cn(
+          "fixed left-0 right-0 flex justify-center z-[100] pointer-events-none transition-all duration-300",
+          isRefreshing ? "top-6 opacity-100" : "opacity-0"
+        )}
+        style={!isRefreshing ? { 
+          top: `${pullDistance - 30}px`, 
+          opacity: Math.min(pullDistance / 70, 1),
+          transform: `scale(${Math.min(pullDistance / 70, 1)}) rotate(${pullDistance * 3}deg)`
+        } : {}}
+      >
+        <div className="bg-white p-2.5 rounded-full shadow-2xl border border-slate-100 flex items-center justify-center">
+          <Loader2 className={cn("w-5 h-5 text-emerald-600", isRefreshing && "animate-spin")} />
+        </div>
+      </div>
+
       {/* ── Page Header & Advanced Filters ── */}
       <div className="animate-fade-in flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 mt-2">
         <div className="flex flex-wrap items-center gap-4 min-w-0">
@@ -449,7 +491,7 @@ export default function Overview() {
 
       {/* ── 1. Section: Trend Chart + Budget Monitor ── */}
       <div className="animate-fade-in">
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(320px,400px)] gap-8 mb-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(320px,400px)] gap-6 mb-6">
           {/* Trend Chart */}
           <div className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 overflow-hidden flex flex-col">
             <div className="px-6 py-5 border-b border-gray-50 flex items-center justify-between">
@@ -484,24 +526,35 @@ export default function Overview() {
             </div>
           </div>
 
-          {/* Budget Monitor */}
-          <div className="lg:col-span-1">
-            <BudgetMonitor
-              budgets={budgets}
+          {/* Budget Monitor Column — Auto Layout applied */}
+          <div className="lg:col-span-1 flex flex-col">
+            <PaceIndicator 
+              totalBudget={totalBudget}
+              totalActual={totalActual}
               loading={budgetLoading}
-              onOpenSettings={() => setIsBudgetModalOpen(true)}
+              startDate={cycleRange.startDate}
+              endDate={cycleRange.endDate}
             />
+            <div className="flex-1">
+              <BudgetMonitor
+                budgets={budgets}
+                loading={budgetLoading}
+                onOpenSettings={() => setIsBudgetModalOpen(true)}
+              />
+            </div>
           </div>
         </div>
 
         {/* ── 2. Section: Metric Cards ── */}
-        <MetricCards
-          stats={{
-            ...(stableStats || { total_income: 0, net_savings: 0 }),
-            total_expense: stats?.total_expense || 0
-          }}
-          loading={loading}
-        />
+        <div className="mb-6">
+          <MetricCards
+            stats={{
+              ...(stableStats || { total_income: 0, net_savings: 0 }),
+              total_expense: stats?.total_expense || 0
+            }}
+            loading={loading}
+          />
+        </div>
 
         {/* ── 3. Section: Account Portfolio ── */}
         <AccountPortfolio
@@ -509,11 +562,11 @@ export default function Overview() {
           totalAssets={totalAssets}
           loading={accountLoading}
           onUpdate={async (data) => {
-            const result = await upsertAccount(data)
-            if (result.success) {
+            try {
+              await upsertAccount(data)
               toast.success(`Akun ${data.name || ''} berhasil disimpan`)
-            } else {
-              toast.error('Gagal menyimpan akun: ' + (result.error || 'Unknown error'))
+            } catch (err) {
+              toast.error('Gagal menyimpan akun: ' + (err.message || 'Unknown error'))
             }
           }}
           onDelete={(id) => {
@@ -530,14 +583,17 @@ export default function Overview() {
           loading={investLoading}
           onAdd={addInvestment}
           onUpdate={updateInvestment}
-          onDelete={removeInvestment}
+          onDelete={(id) => {
+            setDeleteConfig({ id, type: 'investment' })
+            setIsDeleteConfirmOpen(true)
+          }}
         />
 
         {/* ── 5. Section: Financial Goals ── */}
         <GoalsSection />
 
         {/* ── 6. Section: Transaction Analysis ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-8 mt-10 mb-2">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-6 mt-6 mb-2">
           {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
           <div className="flex flex-col gap-8 h-full">
             <div className="bg-gradient-to-br from-white to-amber-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit">
@@ -608,61 +664,44 @@ export default function Overview() {
           budgets={budgets}
           onSave={async (category, amount, behaviorGroup) => {
             try {
-              const success = await updateBudget(category, amount, behaviorGroup)
-              if (success) {
-                const cycleRange = getQuickFilterRange('cycle', payDay)
-                fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
-                fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
-                // Refresh category list
-                const { data: catData } = await statsApi.getCategories()
-                setAllCategories(catData || [])
-                toast.success(`Budget ${category} disimpan`)
-              } else {
-                toast.error('Gagal menyimpan budget')
-              }
-              return success
+              await updateBudget({ category, amount, behavior_group: behaviorGroup })
+              
+              // Refresh category list (opsional kalau category baru)
+              const { data: catData } = await statsApi.getCategories()
+              setAllCategories(catData || [])
+              
+              toast.success(`Budget ${category} disimpan`)
+              return true
             } catch (err) {
-              toast.error('Terjadi kesalahan saat menyimpan')
+              toast.error('Gagal menyimpan budget')
               return false
             }
           }}
           onRemove={async (category) => {
             try {
-              const success = await removeBudget(category)
-              if (success) {
-                const cycleRange = getQuickFilterRange('cycle', payDay)
-                fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
-                fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
-                // Refresh category list
-                const { data: catData } = await statsApi.getCategories()
-                setAllCategories(catData || [])
-                toast.success(`Budget ${category} dihapus`)
-              } else {
-                toast.error('Gagal menghapus budget')
-              }
-              return success
+              await removeBudget(category)
+              
+              const { data: catData } = await statsApi.getCategories()
+              setAllCategories(catData || [])
+              
+              toast.success(`Budget ${category} dihapus`)
+              return true
             } catch (err) {
-              toast.error('Terjadi kesalahan saat menghapus')
+              toast.error('Gagal menghapus budget')
               return false
             }
           }}
           onRename={async (oldName, newName) => {
             try {
-              const success = await renameBudget(oldName, newName)
-              if (success) {
-                const cycleRange = getQuickFilterRange('cycle', payDay)
-                fetchBudgets({ startDate: cycleRange.startDate, endDate: cycleRange.endDate })
-                fetchStats(dateRange.startDate, dateRange.endDate, selectedCategories)
-                // Refresh category list
-                const { data: catData } = await statsApi.getCategories()
-                setAllCategories(catData || [])
-                toast.success(`Kategori diubah ke ${newName}`)
-              } else {
-                toast.error('Gagal mengubah kategori')
-              }
-              return success
+              await renameBudget({ oldName, newName })
+              
+              const { data: catData } = await statsApi.getCategories()
+              setAllCategories(catData || [])
+              
+              toast.success(`Kategori diubah ke ${newName}`)
+              return true
             } catch (err) {
-              toast.error('Terjadi kesalahan saat mengubah kategori')
+              toast.error('Gagal mengubah kategori')
               return false
             }
           }}
@@ -672,13 +711,23 @@ export default function Overview() {
         <ConfirmModal
           open={isDeleteConfirmOpen}
           onOpenChange={setIsDeleteConfirmOpen}
-          title={deleteConfig.type === 'transaction' ? "Hapus Transaksi?" : "Hapus Akun Aset?"}
+          title={
+            deleteConfig.type === 'transaction' ? "Hapus Transaksi?" : 
+            deleteConfig.type === 'account' ? "Hapus Akun Aset?" : 
+            "Hapus Investasi?"
+          }
           description={
             deleteConfig.type === 'transaction'
               ? "Data transaksi ini akan dihapus permanen dari riwayat keuangan Anda. Lanjutkan?"
-              : "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
+              : deleteConfig.type === 'account'
+              ? "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
+              : "Data investasi ini akan dihapus permanen dari portofolio Anda. Lanjutkan?"
           }
-          confirmText={deleteConfig.type === 'transaction' ? "Ya, Hapus Data" : "Ya, Hapus Akun"}
+          confirmText={
+            deleteConfig.type === 'transaction' ? "Ya, Hapus Data" : 
+            deleteConfig.type === 'account' ? "Ya, Hapus Akun" : 
+            "Ya, Hapus Investasi"
+          }
           onConfirm={confirmDelete}
         />
       </div>

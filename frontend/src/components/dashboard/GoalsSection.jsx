@@ -114,7 +114,13 @@ export default function GoalsSection() {
         {goals.map((goal) => (
           <GoalCard key={goal.id} goal={goal} onClick={() => handleEditGoal(goal)} />
         ))}
-        
+
+        {goals.length === 0 && !loading && (
+          <div className="hidden md:flex items-center justify-start px-8 py-4 w-full">
+            <p className="text-[0.8rem] text-slate-400 font-bold">Belum ada financial goals. Klik <span className="text-emerald-600">+ Tambah Goal</span> untuk mulai.</p>
+          </div>
+        )}
+
         {/* Add Card (Matched exactly with InvestmentSection) */}
         {!loading && (
           <button

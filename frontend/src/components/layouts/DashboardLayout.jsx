@@ -2,7 +2,7 @@ import { useState, Suspense, lazy } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
-import { Plus } from 'lucide-react'
+import { Plus, LogOut, AlertTriangle } from 'lucide-react'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useFinancial'
 import { useCategories } from '@/hooks/useCategories'
@@ -32,7 +32,7 @@ const NAV_ITEMS = [
     items: [
       {
         to: '/profile',
-        label: 'Profile Saya',
+        label: 'Profile',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
@@ -41,7 +41,7 @@ const NAV_ITEMS = [
       },
       {
         to: '/config',
-        label: 'Sistem AI',
+        label: 'Konfigurasi',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -56,7 +56,7 @@ const NAV_ITEMS = [
     items: [
       {
         to: '/chat',
-        label: 'AI Chat',
+        label: 'Yui AI',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -73,6 +73,7 @@ export default function DashboardLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
 
   const { accounts, refresh: refreshAccounts } = useAccounts()
   const { categories, refresh: refreshCategories } = useCategories()
@@ -94,8 +95,7 @@ export default function DashboardLayout() {
   }
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/login')
+    setShowLogoutModal(true)
   }
 
   const location = useLocation()
@@ -267,12 +267,37 @@ export default function DashboardLayout() {
       <div className="flex-1 relative z-10 flex flex-col h-full overflow-hidden bg-transparent">
         {/* Mobile top bar (Floating Island Style - Top) */}
         <div
-          className="lg:hidden fixed top-4 left-6 right-6 z-50 flex items-center justify-between px-6 py-3 bg-white/70 backdrop-blur-3xl rounded-full border border-white/50 shadow-[0_10px_30px_rgba(0,0,0,0.05)]"
+          className="lg:hidden fixed top-4 left-4 right-4 z-50 flex items-center justify-between px-5 py-2.5 bg-white/70 backdrop-blur-3xl rounded-full border border-white/50 shadow-[0_10px_30px_rgba(0,0,0,0.05)]"
         >
           <div className="flex items-center gap-3">
-            <span className="text-slate-900 font-black text-xs uppercase tracking-[0.15em]">Yui AI</span>
+            <span className="text-slate-900 font-black text-[10px] uppercase tracking-[0.15em]">Yui AI</span>
             <div className="w-[1px] h-3 bg-slate-200/50" />
-            <span className="text-emerald-600/60 font-bold text-[0.55rem] uppercase tracking-widest mt-0.5 whitespace-nowrap overflow-hidden">Financial Dashboard</span>
+            <span className="text-emerald-600/60 font-bold text-[0.5rem] uppercase tracking-widest mt-0.5 whitespace-nowrap overflow-hidden">Financial Dashboard</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <NavLink
+              to="/config"
+              className={({ isActive }) => cn(
+                "p-2 rounded-full transition-all duration-300",
+                isActive ? "bg-emerald-50 text-emerald-600" : "text-slate-400 hover:bg-slate-50"
+              )}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </NavLink>
+            <button
+              onClick={handleLogout}
+              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all duration-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -288,7 +313,7 @@ export default function DashboardLayout() {
           <div className="flex items-center justify-around">
             {(() => {
               const allItems = NAV_ITEMS.flatMap(section => section.items)
-              const mobileItems = [allItems[0], allItems[2], allItems[1]]
+              const mobileItems = [allItems[0], allItems[3], allItems[1]]
 
               return mobileItems.map((item) => (
                 <NavLink
@@ -351,6 +376,52 @@ export default function DashboardLayout() {
           )}
         </Suspense>
       </div>
+
+      {/* ── Custom Logout Confirmation Modal ── */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-fade-in"
+            onClick={() => setShowLogoutModal(false)} />
+
+          {/* Modal Content */}
+          <div className="relative w-full max-w-sm bg-white rounded-[2.5rem] p-8 shadow-2xl shadow-rose-500/10 border border-rose-50 animate-scale-in flex flex-col items-center text-center">
+            <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mb-6">
+              <div className="w-14 h-14 bg-rose-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-rose-500/40">
+                <AlertTriangle size={28} />
+              </div>
+            </div>
+
+            <h3 className="text-2xl font-black text-slate-900 mb-3">Yakin mau keluar?</h3>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed mb-8">
+              Kamu akan keluar dari sesi Yui AI. Semua data tetap aman tersimpan.
+            </p>
+
+            <div className="w-full flex flex-col gap-3">
+              <button
+                onClick={async () => {
+                  setShowLogoutModal(false)
+                  const toastId = toast.loading('Keluar dari sistem...')
+                  await logout()
+                  toast.dismiss(toastId)
+                  navigate('/login')
+                }}
+                className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white text-sm font-black rounded-2xl transition-all shadow-lg shadow-rose-200 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <LogOut size={18} />
+                YA, KELUAR SEKARANG
+              </button>
+
+              <button
+                onClick={() => setShowLogoutModal(false)}
+                className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 text-sm font-black rounded-2xl transition-all active:scale-95"
+              >
+                BATAL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

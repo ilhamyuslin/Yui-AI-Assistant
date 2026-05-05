@@ -53,6 +53,10 @@ const getExpenseSchema = (categories = []) => {
             transaction_date: {
               type: "string",
               description: "Tanggal transaksi dalam format ISO (opsional, default hari ini)."
+            },
+            draft_index: {
+              type: "integer",
+              description: "PENTING: Gunakan parameter ini HANYA jika user meminta REVISI/PERUBAHAN pada draf yang sudah ada. Isi dengan angka index (misal: 0 untuk [DRAF #0]). Jika ini adalah transaksi baru, biarkan kosong."
             }
           },
           required: ["transaction_type", "amount", "item_name", "category", "source_of_fund"]

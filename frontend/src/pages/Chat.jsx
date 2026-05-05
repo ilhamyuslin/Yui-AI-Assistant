@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { chatApi } from '@/lib/chatApi'
+import { useChat } from '@/hooks/useChat'
+import { statsApi, accountApi, transactionApi } from '@/lib/api'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 
@@ -97,7 +99,7 @@ function ConfirmationCard({ txData }) {
       <div className="max-w-[75%] w-full rounded-2xl rounded-bl-sm bg-slate-50 border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4 py-2 border-b border-slate-200 bg-slate-100/50 flex items-center gap-2">
           <span className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">
-            📜 Riwayat Draf
+            Riwayat Draf
           </span>
         </div>
         <div className="px-4 py-3 space-y-1">
@@ -112,13 +114,148 @@ function ConfirmationCard({ txData }) {
   )
 }
 
+/** Individual Draft Card — Optimized for 0% lag and 100% Premium Look */
+function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLabel }) {
+  const [localName, setLocalName] = useState(item.item_name || '');
+  const [localAmount, setLocalAmount] = useState(item.amount || '');
+
+  const colors = {
+    expense: {
+      primary: 'bg-rose-500',
+      text: 'text-rose-500',
+      bg: 'bg-rose-50/40',
+      hover: 'hover:border-rose-100',
+      shadow: 'rgba(244,63,94,0.1)'
+    },
+    income: {
+      primary: 'bg-emerald-500',
+      text: 'text-emerald-500',
+      bg: 'bg-emerald-50/40',
+      hover: 'hover:border-emerald-100',
+      shadow: 'rgba(16,185,129,0.1)'
+    },
+    transfer: {
+      primary: 'bg-blue-500',
+      text: 'text-blue-500',
+      bg: 'bg-blue-50/40',
+      hover: 'hover:border-blue-100',
+      shadow: 'rgba(59,130,246,0.1)'
+    }
+  };
+
+  const type = item.transaction_type?.toLowerCase() || 'expense';
+  const theme = colors[type] || colors.expense;
+
+  useEffect(() => {
+    setLocalName(item.item_name || '');
+    setLocalAmount(item.amount !== undefined && item.amount !== null ? String(item.amount) : '');
+  }, [item.item_name, item.amount]);
+
+  const handleBlur = () => {
+    onUpdate(idx, 'item_name', localName);
+    onUpdate(idx, 'amount', localAmount);
+  };
+
+  return (
+    <div className={`group relative p-4 rounded-[2rem] bg-white border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-xl ${theme.hover} transition-all duration-500 overflow-hidden`}>
+      {/* Premium Background Accent */}
+      <div className={`absolute -top-12 -right-12 w-32 h-32 ${theme.bg} rounded-full blur-3xl transition-colors duration-700`} />
+
+      <div className="relative space-y-3">
+        <div className="flex justify-between items-center gap-4">
+          <div className="flex-1 space-y-0.5">
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${theme.primary} shadow-[0_0_8px_${theme.shadow}]`} />
+              <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${theme.text}`}>{typeLabel[item.transaction_type] || item.transaction_type}</span>
+            </div>
+            <input
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={handleBlur}
+              className="w-full bg-transparent border-none p-0 text-base font-bold text-slate-800 focus:ring-0 focus:outline-none placeholder:text-slate-300 selection:bg-slate-100"
+              placeholder="Nama transaksi..."
+            />
+          </div>
+          <div className="text-right">
+            <div className="flex items-center justify-end">
+              <span className="text-xs font-black text-slate-300 mr-1">Rp</span>
+              <input
+                type="text"
+                value={localAmount ? Number(localAmount).toLocaleString('id-ID') : ''}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setLocalAmount(val);
+                }}
+                onBlur={handleBlur}
+                className="w-32 bg-transparent border-none p-0 text-xl font-black text-slate-900 text-right focus:ring-0 focus:outline-none placeholder:text-slate-100"
+                placeholder="0"
+              />
+            </div>
+            <input
+              type="date"
+              value={item.transaction_date || new Date().toISOString().split('T')[0]}
+              onChange={(e) => onUpdate(idx, 'transaction_date', e.target.value)}
+              className="text-[9px] font-bold text-slate-400 bg-slate-50 hover:bg-slate-100 px-2 py-0.5 rounded-full border-none focus:ring-0 outline-none cursor-pointer transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 pt-3 border-t border-slate-50">
+          <div className="flex-1 relative group/sel">
+            <select
+              value={item.source_of_fund || ''}
+              onChange={(e) => onUpdate(idx, 'source_of_fund', e.target.value)}
+              className="w-full appearance-none bg-slate-50/50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 focus:bg-white focus:border-slate-200 outline-none transition-all cursor-pointer"
+            >
+              <option value="">Pilih Akun</option>
+              {accounts.map(acc => <option key={acc.id} value={acc.name}>{acc.name}</option>)}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </div>
+          </div>
+
+          <div className="flex-1 relative group/sel">
+            <select
+              value={item.category || ''}
+              onChange={(e) => onUpdate(idx, 'category', e.target.value)}
+              className="w-full appearance-none bg-slate-50/50 border border-slate-100 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-600 text-right focus:bg-white focus:border-slate-200 outline-none transition-all cursor-pointer pr-3"
+            >
+              <option value="">Pilih Kategori</option>
+              {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300">
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </div>
+          </div>
+
+          <button
+            onClick={() => onDelete(idx)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 transition-all active:scale-90 flex-shrink-0"
+            title="Hapus draf ini"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 /** Draft Modal — Floating list of transactions with its own chat input */
-function DraftModal({ isOpen, drafts, onConfirm, onCancel, onChat, isLoading, input, setInput }) {
+function DraftModal({
+  isOpen, drafts, onConfirm, onCancel, onChat, isLoading, input, setInput,
+  categories, accounts, onUpdateDraft, onDeleteDraft
+}) {
   if (!isOpen || !drafts || drafts.length === 0) return null;
 
   const formatRupiah = (n) => `Rp ${Number(n).toLocaleString('id-ID')}`;
-  const typeLabel = { Expense: '💸 Pengeluaran', Income: '💰 Pemasukan', Transfer: '🔁 Transfer' };
+  const typeLabel = { Expense: 'Pengeluaran', Income: 'Pemasukan', Transfer: 'Transfer' };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
@@ -213,28 +350,16 @@ function DraftModal({ isOpen, drafts, onConfirm, onCancel, onChat, isLoading, in
 
             // ── Render Transaction (Default) ──
             return (
-              <div key={idx} className="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-3 relative overflow-hidden group hover:border-emerald-200 hover:bg-emerald-50/30 transition-all duration-300">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{typeLabel[item.transaction_type] || item.transaction_type}</span>
-                    <h4 className="text-sm font-bold text-slate-800 mt-0.5">{item.item_name}</h4>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-slate-900">{formatRupiah(item.amount)}</p>
-                    <p className="text-[10px] text-slate-400 font-medium">{item.transaction_date || 'Hari ini'}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-200/50">
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Sumber</p>
-                    <p className="text-xs font-bold text-slate-600">{item.source_of_fund}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase text-right">Kategori</p>
-                    <p className="text-xs font-bold text-slate-600 text-right">{item.category}</p>
-                  </div>
-                </div>
-              </div>
+              <DraftCard
+                key={idx}
+                item={item}
+                idx={idx}
+                onUpdate={onUpdateDraft}
+                onDelete={onDeleteDraft}
+                categories={categories}
+                accounts={accounts}
+                typeLabel={typeLabel}
+              />
             );
           })}
         </div>
@@ -336,86 +461,53 @@ function EmptyState() {
 
 // ─── Main Chat Page ────────────────────────────────────────────
 export default function Chat() {
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
+  const {
+    messages,
+    totalTokens,
+    setTokens,
+    loadingHistory,
+    draft: input,
+    setDraft: setInput,
+    pendingDrafts,
+    setPendingDrafts,
+    addMessage,
+    updateLastMessage,
+    clearHistory
+  } = useChat()
+
   const [isLoading, setIsLoading] = useState(false)
-  const [pendingDrafts, setPendingDrafts] = useState([]) // New: stores drafts for the modal
-  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false) // New: controls modal
-  const [modalChatInput, setModalChatInput] = useState('') // New: chat input inside modal
-  const [totalTokens, setTotalTokens] = useState(0)
-  const MAX_TOKENS = 100000
+  const [modalChatInput, setModalChatInput] = useState('')
+  const [categories, setCategories] = useState([])
+  const [accounts, setAccounts] = useState([])
+  const [isDraftModalOpen, setIsDraftModalOpen] = useState(false)
+
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const MAX_TOKENS = 100000
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // Focus input on mount & load history
+  // Focus input on mount & load data
   useEffect(() => {
     inputRef.current?.focus()
-    loadHistory()
+    loadAuxData()
   }, [])
 
-  const loadHistory = async () => {
+  const loadAuxData = async () => {
     try {
-      setIsLoading(true)
-      const res = await chatApi.getChatHistory()
-      if (res.success && res.data) {
-        setTotalTokens(res.totalTokens || 0)
-        const loadedMessages = []
-        res.data.forEach((msg, messageIndex) => {
-          // Skip empty or null messages
-          if (!msg.text || msg.text.trim() === "" || msg.text === "null") return
-
-          // Hide system-generated user actions
-          if (msg.sender === 'user' && (msg.text === 'Konfirmasi simpan transaksi.' || msg.text === 'Batalkan transaksi.')) {
-            return;
-          }
-
-          if (msg.sender === 'ai' && msg.text.includes('[PENDING_TX]')) {
-            const lines = msg.text.split('\n')
-            lines.forEach((line, idx) => {
-              if (line.startsWith('[PENDING_TX]')) {
-                try {
-                  const txStr = line.replace('[PENDING_TX]', '').trim()
-                  const txData = JSON.parse(txStr)
-
-                  // If there are subsequent messages, this transaction is stale/read-only
-                  const isStale = messageIndex < res.data.length - 1;
-                  loadedMessages.push({ role: 'ai', type: 'pending_tx', content: txData, confirmed: false, id: msg.id + '_' + idx, isHistory: isStale })
-                } catch (e) {
-                  // ignore
-                }
-              } else if (line.trim()) {
-                loadedMessages.push({ role: 'ai', type: 'text', content: line, id: msg.id + '_' + idx })
-              }
-            })
-          } else {
-            loadedMessages.push({ role: msg.sender, type: 'text', content: msg.text, id: msg.id })
-          }
-        })
-        setMessages(loadedMessages)
-      }
+      const [catRes, accRes] = await Promise.all([
+        statsApi.getCategories(),
+        accountApi.getAll()
+      ])
+      setCategories(catRes.data || [])
+      setAccounts(accRes.data?.accounts || [])
     } catch (err) {
-      console.error('Failed to load history:', err)
-    } finally {
-      setIsLoading(false)
+      console.error('Failed to load aux data:', err)
     }
   }
-
-  const addMessage = useCallback((msg) => {
-    setMessages(prev => [...prev, { ...msg, id: Date.now() + Math.random() }])
-  }, [])
-
-  const updateLastMessage = useCallback((update) => {
-    setMessages(prev => {
-      const updated = [...prev]
-      updated[updated.length - 1] = { ...updated[updated.length - 1], ...update }
-      return updated
-    })
-  }, [])
 
   // ── Send message ──────────────────────────────────────────────
   const handleSend = async () => {
@@ -423,12 +515,12 @@ export default function Chat() {
     if (!text || isLoading || totalTokens >= MAX_TOKENS) return
 
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', type: 'text', content: text, id: Date.now() + Math.random() }])
+    addMessage({ role: 'user', type: 'text', content: text })
     setIsLoading(true)
 
     try {
       const response = await chatApi.send(text)
-      if (response.totalTokens !== undefined) setTotalTokens(response.totalTokens)
+      if (response.totalTokens !== undefined) setTokens(response.totalTokens)
 
       if (response.type === 'PENDING_MULTI' || response.type === 'PENDING_TX' || response.type === 'PENDING_TX_MULTI' ||
         response.type.startsWith('PENDING_ACCOUNT') || response.type.startsWith('PENDING_BUDGET')) {
@@ -446,14 +538,20 @@ export default function Chat() {
         }
 
         setPendingDrafts(prev => {
-          const combined = [...prev, ...newItems];
-          // Gunakan Map agar item baru dengan kunci (nama/tipe) yang sama menimpa item lama
-          const map = new Map();
-          combined.forEach(item => {
-            const key = `${item._itemType}-${item.item_name || item.name || item.category || 'unknown'}`;
-            map.set(key, item);
+          let updated = [...prev];
+          newItems.forEach(item => {
+            if (item.draft_index !== undefined && item.draft_index !== null) {
+              const idx = parseInt(item.draft_index);
+              if (idx >= 0 && idx < updated.length) {
+                updated[idx] = { ...updated[idx], ...item };
+              } else {
+                updated.push(item);
+              }
+            } else {
+              updated.push(item);
+            }
           });
-          return Array.from(map.values());
+          return updated;
         });
 
         if (newItems.length > 0) {
@@ -492,7 +590,8 @@ export default function Chat() {
             ...item,
             transaction_date: item.transaction_date || getLocalDateString()
           }
-          await chatApi.confirm(finalTxData);
+          const res = await chatApi.confirm(finalTxData);
+          if (res?.totalTokens !== undefined) setTokens(res.totalTokens);
         } else if (item._itemType === 'account') {
           await chatApi.confirmAccount(item);
         } else if (item._itemType === 'account_delete') {
@@ -512,7 +611,6 @@ export default function Chat() {
       addMessage({ role: 'ai', type: 'text', content: successMsg })
       toast.success(successMsg)
 
-      // Signal dashboard to refresh
       window.dispatchEvent(new CustomEvent('transaction-saved'))
       window.dispatchEvent(new CustomEvent('accounts-updated'))
     } catch (err) {
@@ -546,7 +644,7 @@ export default function Chat() {
     setIsLoading(true)
     try {
       const response = await chatApi.send(text)
-      if (response.totalTokens !== undefined) setTotalTokens(response.totalTokens)
+      if (response.totalTokens !== undefined) setTokens(response.totalTokens)
 
       if (response.type === 'PENDING_MULTI' || response.type === 'PENDING_TX' || response.type === 'PENDING_TX_MULTI' ||
         response.type.startsWith('PENDING_ACCOUNT') || response.type.startsWith('PENDING_BUDGET')) {
@@ -564,13 +662,20 @@ export default function Chat() {
         }
 
         setPendingDrafts(prev => {
-          const combined = [...prev, ...newItems];
-          const map = new Map();
-          combined.forEach(item => {
-            const key = `${item._itemType}-${item.item_name || item.name || item.category || 'unknown'}`;
-            map.set(key, item);
+          let updated = [...prev];
+          newItems.forEach(item => {
+            if (item.draft_index !== undefined && item.draft_index !== null) {
+              const idx = parseInt(item.draft_index);
+              if (idx >= 0 && idx < updated.length) {
+                updated[idx] = { ...updated[idx], ...item };
+              } else {
+                updated.push(item);
+              }
+            } else {
+              updated.push(item);
+            }
           });
-          return Array.from(map.values());
+          return updated;
         });
       } else {
         toast.info(response.text || "Revisi diterima")
@@ -583,13 +688,10 @@ export default function Chat() {
   }
 
   // ── Clear history ─────────────────────────────────────────────
-  const handleClear = async () => {
-    if (messages.length === 0) return
+  const onClear = async () => {
+    if (!confirm('Hapus semua riwayat percakapan?')) return
     try {
-      await chatApi.clear()
-      setMessages([])
-      setTotalTokens(0)
-      addMessage({ role: 'system', type: 'system', content: 'Riwayat percakapan dihapus.' })
+      await clearHistory()
       toast.success('Riwayat berhasil dihapus')
     } catch (err) {
       toast.error('Gagal menghapus riwayat')
@@ -598,7 +700,9 @@ export default function Chat() {
 
   // ── Key handler ───────────────────────────────────────────────
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Only send on Shift + Enter (Desktop preference)
+    // On mobile, users will use the send button
+    if (e.key === 'Enter' && e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
@@ -639,7 +743,12 @@ export default function Chat() {
 
         {/* ── Messages Area ── */}
         <div className="flex-1 overflow-y-auto no-scrollbar px-1 pt-2 lg:pt-10 pb-4">
-          {messages.length === 0 && !isLoading ? (
+          {loadingHistory && messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+              <div className="w-10 h-10 border-[3px] border-emerald-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Memuat Percakapan...</p>
+            </div>
+          ) : messages.length === 0 && !isLoading ? (
             <EmptyState />
           ) : (
             <>
@@ -678,7 +787,7 @@ export default function Chat() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={totalTokens >= MAX_TOKENS ? "Limit token tercapai!" : (window.innerWidth < 768 ? "Ketik pesan..." : "Ketik pesan atau catat transaksi... (Enter untuk kirim)")}
+              placeholder={totalTokens >= MAX_TOKENS ? "Limit token tercapai!" : (window.innerWidth < 768 ? "Ketik pesan..." : "Ketik pesan... (Shift + Enter untuk kirim)")}
               disabled={isLoading || totalTokens >= MAX_TOKENS}
               rows={1}
               className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none px-3 py-2.5 min-h-[44px] max-h-[140px] leading-relaxed disabled:opacity-50"
@@ -714,10 +823,10 @@ export default function Chat() {
                 <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden mb-4">
                   <div className="bg-emerald-400 h-full transition-all duration-1000" style={{ width: `${Math.min((totalTokens / MAX_TOKENS) * 100, 100)}%` }} />
                 </div>
-                
+
                 {/* Clear History CTA inside Tooltip */}
                 <button
-                  onClick={handleClear}
+                  onClick={onClear}
                   disabled={messages.length === 0 || isLoading}
                   className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/10 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 rounded-xl transition-all duration-300 border border-white/5 disabled:opacity-20 disabled:pointer-events-none group/clear"
                 >
@@ -752,7 +861,7 @@ export default function Chat() {
             </button>
           </div>
           <p className="text-center text-[10px] text-slate-400/60 mt-2 font-medium">
-            Powered by Google Gemini · Model &amp; instruksi sesuai Konfigurasi
+            .
           </p>
         </div>
       </div>
@@ -767,6 +876,19 @@ export default function Chat() {
         isLoading={isLoading}
         input={modalChatInput}
         setInput={setModalChatInput}
+        categories={categories}
+        accounts={accounts}
+        onUpdateDraft={(idx, field, value) => {
+          setPendingDrafts(prev => {
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], [field]: value };
+            return updated;
+          });
+        }}
+        onDeleteDraft={(idx) => {
+          setPendingDrafts(prev => prev.filter((_, i) => i !== idx));
+          toast.info('Item dihapus dari draf');
+        }}
       />
     </>
   )

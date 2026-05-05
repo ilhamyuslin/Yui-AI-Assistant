@@ -40,13 +40,6 @@ const CARD_CONFIG = {
   },
 }
 
-function formatRupiah(amount) {
-  if (amount === undefined || amount === null) return 'Rp –'
-  const abs = Math.abs(amount)
-  const prefix = amount < 0 ? '-' : ''
-  return `${prefix}Rp ${abs.toLocaleString('id-ID')}`
-}
-
 export default function MetricCards({ stats, loading }) {
   const income = stats?.total_income || 0
   const expense = stats?.total_expense || 0
@@ -54,11 +47,51 @@ export default function MetricCards({ stats, loading }) {
   const savingRate = income > 0 ? (net / income) * 100 : 0
   const isPositiveSaving = savingRate > 0
 
+  const renderValue = (type) => {
+    if (loading) return <span className="text-slate-200 animate-pulse">...</span>
+    
+    const colorClass = (type === 'net' && net < 0) || (type === 'savings' && savingRate < 0) ? "text-rose-600" : "text-slate-900"
+
+    if (type === 'savings') {
+      const parts = Math.abs(savingRate).toFixed(1).split('.')
+      return (
+        <span className={cn("inline-flex items-baseline tracking-tighter", colorClass)}>
+          {savingRate < 0 && <span className="font-black mr-0.5">-</span>}
+          <span className="text-[1.3rem] sm:text-[1.6rem] font-black">{parts[0]}</span>
+          <span className="text-[0.8rem] sm:text-[1rem] font-bold opacity-60">.{parts[1]}%</span>
+        </span>
+      )
+    }
+
+    const val = type === 'income' ? income : type === 'expense' ? expense : net
+    const absVal = Math.abs(val)
+    const formatted = new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(absVal)
+    
+    const match = formatted.match(/^(Rp\s?)(\d+)(.*)$/)
+    if (!match) return formatted
+
+    const [, prefix, main, rest] = match
+    const isNegative = val < 0
+
+    return (
+      <span className={cn("inline-flex items-baseline tracking-tighter", colorClass)}>
+        {isNegative && <span className="font-black mr-0.5">-</span>}
+        <span className="font-black opacity-30 text-[0.8rem] sm:text-[0.9rem] mr-0.5">Rp</span>
+        <span className="font-black text-[1.2rem] sm:text-[1.5rem]">{main}</span>
+        <span className="font-bold opacity-50 text-[0.8rem] sm:text-[1rem]">{rest}</span>
+      </span>
+    )
+  }
+
   const cards = [
-    { type: 'income', value: formatRupiah(income) },
-    { type: 'expense', value: formatRupiah(expense) },
-    { type: 'savings', value: `${loading ? '–' : savingRate.toFixed(1)}%`, isPercent: true },
-    { type: 'net', value: formatRupiah(net) },
+    { type: 'income' },
+    { type: 'expense' },
+    { type: 'savings' },
+    { type: 'net' },
   ]
 
   return (
@@ -68,7 +101,7 @@ export default function MetricCards({ stats, loading }) {
         return (
           <div
             key={card.type}
-            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden"
+            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2rem] py-3 sm:py-4 px-5 sm:px-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden"
           >
             {/* Subtle Gradient Glow */}
             <div className={cn(
@@ -100,15 +133,9 @@ export default function MetricCards({ stats, loading }) {
               </div>
 
               <div>
-                <h3 className={cn(
-                  "text-[1rem] sm:text-[1.2rem] xl:text-[1.6rem] font-black tracking-tight transition-all truncate",
-                  loading ? "text-slate-200 animate-pulse" : "text-slate-900",
-                  (card.type === 'net' && net < 0) || (card.type === 'savings' && savingRate < 0) ? "text-red-600" : ""
-                )} title={card.value}>
-                  {card.value}
+                <h3 className="transition-all truncate">
+                  {renderValue(card.type)}
                 </h3>
-
-                {/* Mini Bar removed for consistency */}
               </div>
             </div>
 

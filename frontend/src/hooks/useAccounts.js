@@ -1,64 +1,61 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountApi } from '@/lib/api'
 
 export function useAccounts() {
-  const [accounts, setAccounts] = useState([])
-  const [totalAssets, setTotalAssets] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const queryClient = useQueryClient()
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      setLoading(true)
+  // 1. Fetching dengan sistem Caching (useQuery)
+  const { 
+    data, 
+    isLoading: loading, 
+    error, 
+    refetch: refresh 
+  } = useQuery({
+    queryKey: ['accounts'], // ID Unik di Memori Pusat
+    queryFn: async () => {
       const res = await accountApi.getAll()
-      setAccounts(res.data.accounts || [])
-      setTotalAssets(res.data.totalAssets || 0)
-      setError(null)
-    } catch (err) {
-      console.error('Error fetching accounts:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const upsertAccount = async (data) => {
-    try {
-      if (data.id) {
-        await accountApi.update(data.id, data)
-      } else {
-        await accountApi.create(data)
+      return {
+        accounts: res.data.accounts || [],
+        totalAssets: res.data.totalAssets || 0
       }
-      await fetchAccounts()
-      return { success: true }
-    } catch (err) {
-      console.error('Error upserting account:', err)
-      return { success: false, error: err.message }
     }
-  }
+  })
 
-  const deleteAccount = async (id) => {
-    try {
-      await accountApi.delete(id)
-      await fetchAccounts()
-      return { success: true }
-    } catch (err) {
-      console.error('Error deleting account:', err)
-      return { success: false, error: err.message }
+  const accounts = data?.accounts || []
+  const totalAssets = data?.totalAssets || 0
+
+  // 2. Mutation untuk Create/Update (Auto-refresh memori)
+  const upsertMutation = useMutation({
+    mutationFn: async (data) => {
+      if (data.id) {
+        return await accountApi.update(data.id, data)
+      } else {
+        return await accountApi.create(data)
+      }
+    },
+    onSuccess: () => {
+      // Beritahu Memori Pusat kalau data 'accounts' sudah basi, tolong refresh!
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
     }
-  }
+  })
 
-  useEffect(() => {
-    fetchAccounts()
-  }, [fetchAccounts])
+  // 3. Mutation untuk Delete
+  const deleteMutation = useMutation({
+    mutationFn: async (id) => {
+      return await accountApi.delete(id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+    }
+  })
 
   return {
     accounts,
     totalAssets,
     loading,
-    error,
-    refresh: fetchAccounts,
-    upsertAccount,
-    deleteAccount
+    error: error?.message || null,
+    refresh,
+    upsertAccount: upsertMutation.mutateAsync,
+    deleteAccount: deleteMutation.mutateAsync
   }
 }

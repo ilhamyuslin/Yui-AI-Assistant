@@ -31,8 +31,9 @@ export default function AccountModal({ open, onOpenChange, accounts, onSave, onD
           balance: defaultAccount.balance.toLocaleString('id-ID'),
           icon: defaultAccount.icon || '💰'
         })
-      } else if (!selectedAccountId) {
-        setFormData({ name: '', balance: '', icon: '💰' })
+      } else {
+        setSelectedAccountId(null)
+        setFormData({ name: '', balance: '', icon: 'Wallet' })
       }
     }
   }, [open, defaultAccount])
@@ -88,7 +89,10 @@ export default function AccountModal({ open, onOpenChange, accounts, onSave, onD
           {/* Account Selector (Horizontal Scroll) */}
           <div className="mb-8 overflow-x-auto pb-2 flex gap-2 no-scrollbar">
             <button
-              onClick={() => setSelectedAccountId(null)}
+              onClick={() => {
+                setSelectedAccountId(null)
+                setFormData({ name: '', balance: '', icon: 'Wallet' })
+              }}
               className={cn(
                 "px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap border",
                 !selectedAccountId

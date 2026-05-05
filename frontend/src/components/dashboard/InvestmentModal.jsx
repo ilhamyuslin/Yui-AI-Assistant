@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import dayjs from 'dayjs'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X, ChevronDown, ChevronRight, Gem, TrendingUp, Coins, PieChart, Landmark, ScrollText, Check } from 'lucide-react'
 
@@ -215,13 +216,13 @@ export default function InvestmentModal({ open, onOpenChange, onSave, editData=n
   const isEdit = !!editData
   const [type,  setType]  = useState(editData?.type||'')
   const [name,  setName]  = useState(editData?.name||'')
-  const [date,  setDate]  = useState(editData?.purchase_date||new Date().toISOString().slice(0,10))
+  const [date,  setDate]  = useState(editData?.purchase_date || dayjs().format('YYYY-MM-DD'))
   const [notes, setNotes] = useState(editData?.notes||'')
   const [meta,  setMeta]  = useState(editData?.metadata||{})
   const [saving,setSaving]= useState(false)
 
   useEffect(()=>{
-    if(!open&&!isEdit){ setType('');setName('');setMeta({});setNotes('');setDate(new Date().toISOString().slice(0,10)) }
+    if(!open&&!isEdit){ setType('');setName('');setMeta({});setNotes('');setDate(dayjs().format('YYYY-MM-DD')) }
   },[open,isEdit])
 
   const setField = (k,v)=>setMeta(p=>({...p,[k]:v}))

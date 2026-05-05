@@ -1,30 +1,48 @@
 import { useState, lazy, Suspense } from 'react'
 import { TrendingUp, TrendingDown, Plus, Pencil, Trash2, BarChart3, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 const InvestmentModal = lazy(() => import('./InvestmentModal'))
 
 const TYPE_META = {
-  emas:       { label: 'Emas',       icon: '🥇', bg: 'bg-amber-50',   text: 'text-amber-600',   border: 'border-amber-100',  dot: 'bg-amber-400'  },
-  saham:      { label: 'Saham',      icon: '📈', bg: 'bg-blue-50',    text: 'text-blue-600',    border: 'border-blue-100',   dot: 'bg-blue-400'   },
-  crypto:     { label: 'Crypto',     icon: '🪙', bg: 'bg-violet-50',  text: 'text-violet-600',  border: 'border-violet-100', dot: 'bg-violet-400' },
-  reksa_dana: { label: 'Reksa Dana', icon: '📦', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100',dot: 'bg-emerald-400'},
-  deposito:   { label: 'Deposito',   icon: '🏦', bg: 'bg-sky-50',     text: 'text-sky-600',     border: 'border-sky-100',    dot: 'bg-sky-400'    },
-  obligasi:   { label: 'Obligasi',   icon: '📜', bg: 'bg-rose-50',    text: 'text-rose-600',    border: 'border-rose-100',   dot: 'bg-rose-400'   },
+  emas: { label: 'Emas', icon: '🥇', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100', dot: 'bg-amber-400' },
+  saham: { label: 'Saham', icon: '📈', bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100', dot: 'bg-blue-400' },
+  crypto: { label: 'Crypto', icon: '🪙', bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100', dot: 'bg-violet-400' },
+  reksa_dana: { label: 'Reksa Dana', icon: '📦', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100', dot: 'bg-emerald-400' },
+  deposito: { label: 'Deposito', icon: '🏦', bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-100', dot: 'bg-sky-400' },
+  obligasi: { label: 'Obligasi', icon: '📜', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100', dot: 'bg-rose-400' },
 }
 
-const fmt = (v) => {
-  if (!v && v !== 0) return '–'
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v)
+const renderFormattedCurrency = (val, largeSize = "text-3xl", smallSize = "text-lg", colorClass = "text-white") => {
+  if (!val && val !== 0) return '–'
+  const formatted = new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: (val % 1 !== 0) ? 2 : 0,
+  }).format(val)
+  
+  // Pisahkan: Rp [AngkaDepan] [Sisanya]
+  const match = formatted.match(/^(Rp\s?)(\d+)(.*)$/)
+  if (!match) return formatted
+
+  const [, prefix, main, rest] = match
+  return (
+    <span className="inline-flex items-baseline tracking-tighter">
+      <span className={cn("font-black opacity-50 mr-0.5", smallSize, colorClass)}>{prefix}</span>
+      <span className={cn("font-black", largeSize, colorClass)}>{main}</span>
+      <span className={cn("font-bold opacity-70", smallSize, colorClass)}>{rest}</span>
+    </span>
+  )
 }
 
 function InvestmentCard({ inv, onEdit, onDelete }) {
-  const meta    = TYPE_META[inv.type] || TYPE_META.emas
+  const meta = TYPE_META[inv.type] || TYPE_META.emas
   const current = Number(inv.current_value ?? inv.purchase_value)
-  const cost    = Number(inv.purchase_value)
-  const diff    = current - cost
-  const pct     = cost > 0 ? (diff / cost) * 100 : 0
-  const isUp    = diff >= 0
+  const cost = Number(inv.purchase_value)
+  const diff = current - cost
+  const pct = cost > 0 ? (diff / cost) * 100 : 0
+  const isUp = diff >= 0
 
   return (
     <div className="group min-w-[200px] bg-white border border-slate-100 rounded-[2.5rem] p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all shrink-0 relative overflow-hidden">
@@ -44,13 +62,16 @@ function InvestmentCard({ inv, onEdit, onDelete }) {
       </div>
 
       {/* Name */}
-      <p className="text-[0.9rem] font-black text-slate-800 tracking-tight leading-tight mb-3 truncate">{inv.name}</p>
+      <p className="text-[0.95rem] font-black text-slate-800 tracking-tight leading-normal mt-1 mb-3 truncate">{inv.name}</p>
 
       {/* Values */}
       <div className="space-y-0.5">
-        <span className="block text-xl font-black text-slate-900 tracking-tighter">{fmt(current)}</span>
+        <div className="block">
+          {renderFormattedCurrency(current, "text-xl", "text-xs", "text-slate-900")}
+        </div>
         <span className={`block text-[0.7rem] font-bold ${isUp ? 'text-emerald-500' : 'text-rose-500'}`}>
-          {isUp ? '▲ +' : '▼ '}{fmt(Math.abs(diff))} dari modal
+          {isUp ? '▲ +' : '▼ '}
+          <span className="opacity-70 text-[9px] mr-0.5">Rp</span>{Math.abs(diff).toLocaleString('id-ID')}
         </span>
       </div>
 
@@ -69,16 +90,16 @@ function InvestmentCard({ inv, onEdit, onDelete }) {
 
 export default function InvestmentSection({ investments, totalPortfolio, totalCost, loading, onAdd, onUpdate, onDelete }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editTarget, setEditTarget]   = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
 
-  const totalPnL   = totalPortfolio - totalCost
-  const pnlPct     = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0
+  const totalPnL = totalPortfolio - totalCost
+  const pnlPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0
   const isPositive = totalPnL >= 0
 
   const handleSave = async (payload, id) => {
     try {
       if (id) {
-        await onUpdate(id, payload)
+        await onUpdate({ id, payload })
         toast.success('Investasi berhasil diperbarui')
       } else {
         await onAdd(payload)
@@ -92,14 +113,8 @@ export default function InvestmentSection({ investments, totalPortfolio, totalCo
 
   const handleEdit = (inv) => { setEditTarget(inv); setIsModalOpen(true) }
 
-  const handleDelete = async (inv) => {
-    if (!window.confirm(`Hapus "${inv.name}"?`)) return
-    try {
-      await onDelete(inv.id)
-      toast.success('Investasi dihapus')
-    } catch {
-      toast.error('Gagal menghapus')
-    }
+  const handleDelete = (inv) => {
+    onDelete(inv.id)
   }
 
   return (
@@ -122,7 +137,7 @@ export default function InvestmentSection({ investments, totalPortfolio, totalCo
       </div>
 
       {/* ── Layout: Dark Summary Card + Slider ── */}
-      <div className="flex flex-col lg:flex-row gap-5 items-stretch h-auto lg:h-[180px]">
+      <div className="flex flex-col lg:flex-row gap-5 items-stretch h-auto lg:h-[200px]">
 
         {/* 1. Dark Summary Card */}
         <div className="w-full lg:w-1/4 min-w-[240px] xl:w-[280px] bg-slate-900 rounded-[2.5rem] p-6 sm:p-8 shadow-xl shadow-emerald-950/20 relative flex flex-col justify-center border border-white/5 shrink-0 z-20 overflow-hidden">
@@ -137,9 +152,11 @@ export default function InvestmentSection({ investments, totalPortfolio, totalCo
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Total Investasi</span>
             </div>
 
-            <span className="block text-3xl font-black text-white tracking-tighter mb-1">
-              {loading ? <span className="inline-block w-28 h-7 bg-white/10 rounded-xl animate-pulse" /> : fmt(totalPortfolio)}
-            </span>
+            <div className="mb-1">
+              {loading ? (
+                <span className="block text-3xl font-black text-white/10 animate-pulse">Rp...</span>
+              ) : renderFormattedCurrency(totalPortfolio, "text-3xl", "text-lg", "text-white")}
+            </div>
 
             <div className="flex items-center gap-2">
               <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md ${isPositive ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
@@ -168,7 +185,7 @@ export default function InvestmentSection({ investments, totalPortfolio, totalCo
                 <div key={i} className="min-w-[240px] h-full bg-white border border-slate-100 rounded-[2rem] animate-pulse shrink-0" />
               ))
             ) : investments.length === 0 ? (
-              <div className="flex items-center justify-start px-8 py-4 w-full">
+              <div className="hidden md:flex items-center justify-start px-8 py-4 w-full">
                 <p className="text-[0.8rem] text-slate-400 font-bold">Belum ada investasi. Klik <span className="text-emerald-600">+ Tambah Investasi</span> untuk mulai.</p>
               </div>
             ) : (

@@ -147,7 +147,7 @@ async function upsertBudget(budgetData) {
 
     const { data, error } = await supabase
       .from('budgets')
-      .upsert(payload, { onConflict: 'user_id, category' })
+      .upsert(payload, { onConflict: 'user_id,category' })
       .select()
       .single();
 

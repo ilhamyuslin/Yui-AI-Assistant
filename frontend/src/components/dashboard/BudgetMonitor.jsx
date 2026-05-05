@@ -45,45 +45,26 @@ export default function BudgetMonitor({ budgets, loading, onOpenSettings }) {
     <div 
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="bg-gradient-to-br from-white to-emerald-50/40 rounded-[2.5rem] p-5 sm:p-8 shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden"
+      className="bg-gradient-to-br from-white to-emerald-50/40 rounded-[2.5rem] p-5 sm:p-6 shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden"
     >
       
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-extrabold text-slate-800 tracking-tight">Budget Monitor</h3>
-          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Target vs Realisasi</p>
+          <h3 className="text-base font-extrabold text-slate-800 tracking-tight">Budget Monitor</h3>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Categorical Progress</p>
         </div>
         <button
           onClick={onOpenSettings}
-          className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-xl border border-slate-200 hover:border-emerald-200 font-bold text-xs transition-all active:scale-95"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 rounded-xl border border-slate-200 hover:border-emerald-200 font-bold text-[10px] transition-all active:scale-95"
         >
-          <Plus size={14} strokeWidth={3} />
+          <Plus size={12} strokeWidth={3} />
           Atur
         </button>
       </div>
 
-      {/* Total Summary Row (Added per request) */}
-      {!loading && budgets && budgets.length > 0 && (
-        <div className="mb-6 p-4 bg-slate-50/50 border border-slate-100 rounded-2xl flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Anggaran</p>
-            <p className="text-sm font-extrabold text-slate-800">Rp {totalBudget.toLocaleString('id-ID')}</p>
-          </div>
-          <div className="text-right space-y-1">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Total Realisasi</p>
-            <p className={cn(
-              "text-sm font-extrabold",
-              totalActual > totalBudget ? "text-rose-500" : "text-emerald-600"
-            )}>
-              Rp {totalActual.toLocaleString('id-ID')}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* List */}
-      <div className="flex-1 space-y-5">
+      <div className="flex-1 space-y-4">
         {loading ? (
           Array(4).fill(0).map((_, i) => (
             <div key={i} className="animate-pulse space-y-2">

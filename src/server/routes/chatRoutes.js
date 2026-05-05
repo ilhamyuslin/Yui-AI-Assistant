@@ -71,14 +71,18 @@ router.post('/', async (req, res) => {
     const { history: rawHistory } = await getHistory(userId);
 
     // Format history for Gemini to prevent it from mimicking the [PENDING_TX] raw string
-    const history = rawHistory.map(turn => {
+    const history = rawHistory.map((turn, idx) => {
       const text = turn.parts?.[0]?.text || '';
       if (turn.role === 'model' && text.includes('[PENDING_TX]')) {
-        // Ekstrak data untuk tetap memberi konteks pada AI tanpa memicu marker mentah
+        // Hanya beri nomor index untuk draf di pesan PALING BARU supaya AI gak bingung
+        const isLastModelMessage = !rawHistory.slice(idx + 1).some(t => t.role === 'model' && t.parts?.[0]?.text?.includes('[PENDING_TX]'));
+        
+        let draftIdx = 0;
         const cleanText = text.replace(/\[PENDING_TX\]\s*(\{.*\})/g, (match, json) => {
           try {
             const d = JSON.parse(json);
-            return `[DRAFT]: ${d.item_name || 'Transaksi'} senilai ${d.amount || 0} via ${d.source_of_fund || 'akun'}. (Menunggu konfirmasi)`;
+            const label = isLastModelMessage ? `[DRAF #${draftIdx++}]` : `[DRAF LAMA]`;
+            return `${label}: ${d.item_name || 'Transaksi'} senilai ${d.amount || 0} via ${d.source_of_fund || 'akun'}.`;
           } catch (e) { return 'Draf transaksi ditampilkan.'; }
         });
         return { role: 'model', parts: [{ text: cleanText }] };
@@ -105,6 +109,7 @@ router.post('/', async (req, res) => {
 
         // 1. Tool Transaksi Langsung
         if (functionName === 'request_record_transaction') {
+          console.log(`[DraftDebug] AI Request: ${args.item_name}, Index: ${args.draft_index}`);
           pendingDrafts.push({ ...args, _itemType: 'transaction' });
           continue;
         }
@@ -320,7 +325,7 @@ router.post('/confirm-budget', async (req, res) => {
   }
 });
 
-router.delete('/delete-budget', async (req, res) => {
+router.post('/delete-budget', async (req, res) => {
   const { category } = req.body;
   const { deleteBudget } = require('../../storage/budgetStore');
 
