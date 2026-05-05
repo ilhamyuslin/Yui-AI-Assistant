@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { chatApi } from '@/lib/chatApi'
+import imageCompression from 'browser-image-compression'
 import { useChat } from '@/hooks/useChat'
 import { statsApi, accountApi, transactionApi } from '@/lib/api'
 import { toast } from 'sonner'
@@ -476,6 +477,12 @@ export default function Chat() {
   } = useChat()
 
   const [isLoading, setIsLoading] = useState(false)
+  const [attachment, setAttachment] = useState(null)
+  const [attachmentPreview, setAttachmentPreview] = useState(null)
+  const [isProcessingImage, setIsProcessingImage] = useState(false)
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+  const cameraInputRef = useRef(null)
+  const galleryInputRef = useRef(null)
   const [modalChatInput, setModalChatInput] = useState('')
   const [categories, setCategories] = useState([])
   const [accounts, setAccounts] = useState([])
@@ -512,10 +519,34 @@ export default function Chat() {
   // ── Send message ──────────────────────────────────────────────
   const handleSend = async () => {
     const text = input.trim()
-    if (!text || isLoading || totalTokens >= MAX_TOKENS) return
+    if (!text && !attachment) return
+    if (isLoading || totalTokens >= MAX_TOKENS) return
 
     setInput('')
-    addMessage({ role: 'user', type: 'text', content: text })
+    addMessage({ role: 'user', type: 'text', content: text || (attachment ? '[Kirim Gambar Struk]' : '') })
+
+    // ── DUMMY LOGIC FOR TESTING ──
+    if (attachment) {
+      setIsLoading(true)
+      setTimeout(() => {
+        setIsLoading(false)
+        const dummyTx = {
+          _itemType: 'transaction',
+          item_name: 'Belanja Struk Dummy',
+          amount: 150000,
+          category: 'Kebutuhan Rumah',
+          source_of_fund: 'BCA',
+          transaction_type: 'Expense',
+          transaction_date: new Date().toISOString().split('T')[0]
+        }
+        setPendingDrafts([dummyTx])
+        setIsDraftModalOpen(true)
+        addMessage({ role: 'ai', type: 'text', content: '✅ Gue udah scan struknya, Bos. Ini drafnya, bener nggak?' })
+        removeAttachment()
+      }, 2000)
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -631,6 +662,43 @@ export default function Chat() {
     } catch (err) {
       toast.error('Gagal membatalkan.')
     }
+  }
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Waduh Bos, yang lo upload bukan gambar!')
+      return
+    }
+
+    try {
+      setIsProcessingImage(true)
+      const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1280,
+        useWebWorker: true,
+      }
+      const compressedFile = await imageCompression(file, options)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAttachment(reader.result)
+        setAttachmentPreview(URL.createObjectURL(compressedFile))
+        setIsProcessingImage(false)
+      }
+      reader.readAsDataURL(compressedFile)
+    } catch (error) {
+      toast.error('Gagal memproses gambar.')
+      setIsProcessingImage(false)
+    }
+  }
+
+  const removeAttachment = () => {
+    setAttachment(null)
+    setAttachmentPreview(null)
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
   }
 
   // ── Chat Revision from Modal ─────────────────────────────────
@@ -780,14 +848,99 @@ export default function Chat() {
 
         {/* ── Input Area ── */}
         <div className="flex-shrink-0 pt-4 pb-2 lg:pb-0">
+          {/* Attachment Preview Overlay */}
+          {attachmentPreview && (
+            <div className="relative mb-2 ml-2 w-20 h-20 group">
+              <img 
+                src={attachmentPreview} 
+                className="w-full h-full object-cover rounded-xl border-2 border-emerald-500 shadow-lg" 
+                alt="Preview" 
+              />
+              <button 
+                onClick={removeAttachment}
+                className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-rose-600 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+          )}
+
           <div className="flex items-end gap-3 p-2 bg-white/70 backdrop-blur-2xl border border-white/60 rounded-2xl shadow-lg shadow-black/[0.03]">
+            {/* Attachment Button with Custom Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                disabled={isLoading || isProcessingImage}
+                className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 ${showAttachmentMenu ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600'}`}
+              >
+                {isProcessingImage ? (
+                  <svg className="animate-spin" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${showAttachmentMenu ? 'rotate-45' : ''}`}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                )}
+              </button>
+
+              {/* Custom Popover Menu */}
+              {showAttachmentMenu && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[90]" 
+                    onClick={() => setShowAttachmentMenu(false)}
+                  />
+                  <div className="absolute bottom-14 left-0 w-48 p-2 bg-white/90 backdrop-blur-xl border border-white/60 rounded-2xl shadow-2xl z-[100] animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-200 origin-bottom-left">
+                    <button 
+                      onClick={() => {
+                        cameraInputRef.current?.click();
+                        setShowAttachmentMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 transition-colors outline-none group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                      </div>
+                      <span className="font-bold text-sm">Ambil Foto</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        galleryInputRef.current?.click();
+                        setShowAttachmentMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-blue-50 text-slate-700 hover:text-blue-700 transition-colors outline-none group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                      </div>
+                      <span className="font-bold text-sm">Galeri Foto</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Hidden Inputs */}
+            <input 
+              type="file" 
+              ref={cameraInputRef} 
+              onChange={handleImageSelect} 
+              accept="image/*" 
+              capture="environment"
+              className="hidden" 
+            />
+            <input 
+              type="file" 
+              ref={galleryInputRef} 
+              onChange={handleImageSelect} 
+              accept="image/*" 
+              className="hidden" 
+            />
+
             <textarea
               ref={inputRef}
               id="chat-message-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={totalTokens >= MAX_TOKENS ? "Limit token tercapai!" : (window.innerWidth < 768 ? "Ketik pesan..." : "Ketik pesan... (Shift + Enter untuk kirim)")}
+              placeholder={totalTokens >= MAX_TOKENS ? "Limit token tercapai!" : "Ketik pesan atau lampirkan struk..."}
               disabled={isLoading || totalTokens >= MAX_TOKENS}
               rows={1}
               className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none px-3 py-2.5 min-h-[44px] max-h-[140px] leading-relaxed disabled:opacity-50"
@@ -845,7 +998,7 @@ export default function Chat() {
             <button
               id="chat-send-btn"
               onClick={handleSend}
-              disabled={!input.trim() || isLoading || totalTokens >= MAX_TOKENS}
+              disabled={(!input.trim() && !attachment) || isLoading || totalTokens >= MAX_TOKENS}
               className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white transition-all duration-300 hover:opacity-90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
               style={{ background: totalTokens >= MAX_TOKENS ? '#94a3b8' : 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}
             >
