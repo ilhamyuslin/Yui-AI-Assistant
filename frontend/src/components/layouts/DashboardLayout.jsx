@@ -111,7 +111,7 @@ export default function DashboardLayout() {
     const handleResize = () => {
       const vv = window.visualViewport;
       if (!vv) return;
-      
+
       setViewportHeight(vv.height);
       const isCurrentlyOpen = vv.height < window.innerHeight * 0.85;
       setIsKeyboardOpen(isCurrentlyOpen);
@@ -131,7 +131,7 @@ export default function DashboardLayout() {
   }, []);
 
   return (
-    <div 
+    <div
       className="fixed inset-x-0 top-0 overflow-hidden bg-[#fafafa] flex flex-col lg:flex-row"
       style={{ height: `${viewportHeight}px` }}
     >

@@ -668,23 +668,24 @@ export default function Chat() {
   }
 
   // ── Send message ──────────────────────────────────────────────
-  const handleSend = async () => {
+  const handleSend = async (overriddenAttachment = null) => {
     const text = input.trim()
-    if (!text && !attachment) return
+    const currentAttachment = overriddenAttachment || attachment
+    if (!text && !currentAttachment) return
     if (isLoading || totalTokens >= MAX_TOKENS) return
 
     setInput('')
     if (inputRef.current) {
       inputRef.current.style.height = 'auto'
     }
-    addMessage({ role: 'user', type: 'text', content: text || (attachment ? '[Kirim Gambar Struk]' : '') })
+    addMessage({ role: 'user', type: 'text', content: text || (currentAttachment ? '📸 [Kirim Gambar Struk]' : '') })
 
     setIsLoading(true)
     let shouldFocusAfterSend = true;
 
     try {
-      const response = await chatApi.send(text, attachment)
-      if (attachment) removeAttachment()
+      const response = await chatApi.send(text, currentAttachment)
+      if (currentAttachment) removeAttachment()
 
       if (response.totalTokens !== undefined) setTokens(response.totalTokens)
 
@@ -812,9 +813,13 @@ export default function Chat() {
       const compressedFile = await imageCompression(file, options)
       const reader = new FileReader()
       reader.onloadend = () => {
-        setAttachment(reader.result)
+        const imageData = reader.result
+        setAttachment(imageData)
         setAttachmentPreview(URL.createObjectURL(compressedFile))
         setIsProcessingImage(false)
+        
+        // Auto-send immediately
+        handleSend(imageData)
       }
       reader.readAsDataURL(compressedFile)
     } catch (error) {
@@ -944,12 +949,6 @@ export default function Chat() {
                   className="w-full h-full object-cover rounded-xl border-2 border-emerald-500 shadow-lg"
                   alt="Preview"
                 />
-                <button
-                  onClick={removeAttachment}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-rose-600 transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
               </div>
             )}
 

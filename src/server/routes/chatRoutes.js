@@ -94,12 +94,12 @@ router.post('/', async (req, res) => {
     // Fetch actual categories & accounts for context
     const { getCategories } = require('../../storage/budgetStore');
     const { getAccounts } = require('../../storage/accountStore');
-    
+
     const [catResult, accResult] = await Promise.all([
       getCategories(userId),
       getAccounts(userId)
     ]);
-    
+
     const categories = catResult.success ? catResult.data : [];
     const accounts = accResult.success ? accResult.data : [];
 
@@ -109,7 +109,7 @@ router.post('/', async (req, res) => {
       const scanResult = await scanReceipt(image, message || '', config, categories);
 
       if (!scanResult.is_valid_receipt) {
-        const msg = "Maaf Bos, gambarnya nggak kayak struk pembayaran. Coba pastiin fotonya jelas ya!";
+        const msg = "Maaf gambarnya nggak kayak struk pembayaran. Coba pastiin dulu ya!";
         const { total_tokens } = await appendHistory(userId, userName, "[Kirim Gambar]", msg);
         return res.json({ type: 'TEXT', text: msg, totalTokens: total_tokens });
       }
@@ -129,7 +129,7 @@ router.post('/', async (req, res) => {
       return res.json({
         type: 'PENDING_MULTI',
         data: [pendingDraft],
-        text: "Gue udah scan struknya, Bos. Bener nggak datanya?",
+        text: "Struknya udah aku scan, harap tunggu ya",
         totalTokens: total_tokens
       });
     }
