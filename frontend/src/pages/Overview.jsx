@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } fro
 import dayjs from 'dayjs'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useStats, useTransactions, getQuickFilterRange } from '@/hooks/useFinancial'
+import { useStats, useTransactions, getQuickFilterRange, getActualPayday } from '@/hooks/useFinancial'
 import { useBudgets } from '@/hooks/useBudgets'
 import MetricCards from '@/components/dashboard/MetricCards'
 import TrendChart from '@/components/dashboard/TrendChart'
@@ -86,6 +86,56 @@ export default function Overview() {
   const trendLoading = trendQuery.isLoading
   const stableStats = stableQuery.data
   const stableStatsLoading = stableQuery.isLoading
+
+  // ── Comparison Stats (MTD, Weekly, Daily) ──
+  const comparisonRanges = useMemo(() => {
+    const today = dayjs().startOf('day')
+    const currentStart = dayjs(cycleRange.startDate)
+    
+    // 1. Last Cycle MTD (Apple-to-apple comparison)
+    const prevCycleStart = getActualPayday(currentStart.subtract(1, 'month'), payDay)
+    const daysSinceCycleStart = today.diff(currentStart, 'day')
+    const prevCycleEndMtd = prevCycleStart.add(daysSinceCycleStart, 'day')
+    const prevCycleEndFull = currentStart.subtract(1, 'day')
+
+    // 2. Weekly (Last 7d vs Previous 7d)
+    const thisWeekStart = today.subtract(6, 'day')
+    const lastWeekStart = today.subtract(13, 'day')
+    const lastWeekEnd = today.subtract(7, 'day')
+
+    // 3. Daily (Today vs Yesterday vs Day Before)
+    const yesterday = today.subtract(1, 'day')
+    const dayBefore = today.subtract(2, 'day')
+
+    return {
+      prevCycleMtd: { start: prevCycleStart.format('YYYY-MM-DD'), end: prevCycleEndMtd.format('YYYY-MM-DD') },
+      prevCycleFull: { start: prevCycleStart.format('YYYY-MM-DD'), end: prevCycleEndFull.format('YYYY-MM-DD') },
+      thisWeek: { start: thisWeekStart.format('YYYY-MM-DD'), end: today.format('YYYY-MM-DD') },
+      lastWeek: { start: lastWeekStart.format('YYYY-MM-DD'), end: lastWeekEnd.format('YYYY-MM-DD') },
+      today: { start: today.format('YYYY-MM-DD'), end: today.format('YYYY-MM-DD') },
+      yesterday: { start: yesterday.format('YYYY-MM-DD'), end: yesterday.format('YYYY-MM-DD') },
+      dayBefore: { start: dayBefore.format('YYYY-MM-DD'), end: dayBefore.format('YYYY-MM-DD') }
+    }
+  }, [cycleRange.startDate, payDay])
+
+  const prevCycleMtdQuery = useStats(comparisonRanges.prevCycleMtd.start, comparisonRanges.prevCycleMtd.end)
+  const prevCycleFullQuery = useStats(comparisonRanges.prevCycleFull.start, comparisonRanges.prevCycleFull.end)
+  const thisWeekQuery = useStats(comparisonRanges.thisWeek.start, comparisonRanges.thisWeek.end)
+  const lastWeekQuery = useStats(comparisonRanges.lastWeek.start, comparisonRanges.lastWeek.end)
+  const todayStatsQuery = useStats(comparisonRanges.today.start, comparisonRanges.today.end)
+  const yesterdayQuery = useStats(comparisonRanges.yesterday.start, comparisonRanges.yesterday.end)
+  const dayBeforeQuery = useStats(comparisonRanges.dayBefore.start, comparisonRanges.dayBefore.end)
+
+  const comparisonStats = {
+    prevCycleMtd: prevCycleMtdQuery.data,
+    prevCycleFull: prevCycleFullQuery.data,
+    thisWeek: thisWeekQuery.data,
+    lastWeek: lastWeekQuery.data,
+    today: todayStatsQuery.data,
+    yesterday: yesterdayQuery.data,
+    dayBefore: dayBeforeQuery.data,
+    loading: prevCycleMtdQuery.isLoading || prevCycleFullQuery.isLoading || thisWeekQuery.isLoading || lastWeekQuery.isLoading || todayStatsQuery.isLoading || yesterdayQuery.isLoading || dayBeforeQuery.isLoading
+  }
 
   const loading = statsLoading || txLoading || budgetLoading || accountLoading || stableStatsLoading
   const error = statsError || txError
@@ -528,6 +578,8 @@ export default function Overview() {
               ...(stableStats || { total_income: 0, net_savings: 0 }),
               total_expense: stats?.total_expense || 0
             }}
+            stableStats={stableStats}
+            comparisonStats={comparisonStats}
             loading={loading}
           />
         </div>
@@ -602,6 +654,7 @@ export default function Overview() {
               payDay={payDay}
               categories={stableStats?.categories || {}}
               budgets={budgets}
+              dailyTrend={trendStats?.daily_trend || {}}
               loading={stableStatsLoading}
               className="flex-1"
             />

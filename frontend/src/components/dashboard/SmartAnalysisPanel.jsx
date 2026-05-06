@@ -5,9 +5,13 @@ import {
   Wallet, 
   ShieldCheck,
   AlertCircle,
-  Zap
+  Zap,
+  Info,
+  TrendingDown,
+  ChevronRight
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import * as Popover from '@radix-ui/react-popover'
 
 export default function SmartAnalysisPanel({ 
   income = 0, 
@@ -15,6 +19,7 @@ export default function SmartAnalysisPanel({
   payDay = 25, 
   categories = {},
   budgets = [],
+  dailyTrend = {},
   loading,
   className
 }) {
@@ -46,36 +51,40 @@ export default function SmartAnalysisPanel({
 
   const daysUntilPayday = nextPaydayDate.diff(today.startOf('day'), 'day')
 
-  // --- NEW CUSTOM LOGIC: Disposable Daily Limit (Priority: 35% Saving) ---
-  const fixedKeywords = ['rumah', 'tagihan', 'tempat tinggal']
+  // --- PROGRESS TIMELINE LOGIC ---
+  const prevPaydayDate = today.isAfter(currentPayday, 'day') 
+    ? currentPayday 
+    : getActualPayday(today.subtract(1, 'month'), payDay)
   
+  const totalCycleDays = nextPaydayDate.diff(prevPaydayDate, 'day')
+  const daysPassed = today.startOf('day').diff(prevPaydayDate, 'day')
+  const progressPercent = Math.min(100, Math.max(0, (daysPassed / (totalCycleDays || 1)) * 100))
+  // --- END TIMELINE LOGIC ---
+
+  // --- DAILY LIMIT LOGIC (Priority: 35% Saving) ---
   // 1. Hard Limit: Hanya boleh pakai 65% dari gaji (35% WAJIB SAVE)
   const maxAllowableSpending = income * 0.65
-
-  // 2. Hitung budget khusus fixed costs dari tabel
-  const fixedBudgetSum = budgets
-    .filter(b => fixedKeywords.some(key => b.category?.toLowerCase().includes(key)))
-    .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
-
-  // 3. Hitung pengeluaran di kategori fixed costs
-  const fixedExpenseSum = Object.entries(categories)
-    .filter(([name]) => fixedKeywords.some(key => name.toLowerCase().includes(key)))
-    .reduce((acc, [_, val]) => acc + (Number(val) || 0), 0)
-
-  // 4. Hitung pengeluaran variabel (total - pengeluaran fixed)
-  const variableExpenseSum = totalExpense - fixedExpenseSum
   
-  // 5. Jatah uang "bebas" (Max Spending - Fixed Costs - Yang Sudah Dipakai)
-  const netDisposableBudget = Math.max(0, maxAllowableSpending - fixedBudgetSum)
-  const remainingMoney = Math.max(0, netDisposableBudget - variableExpenseSum)
+  // 2. Sisa jatah uang yang boleh dipakai (Jatah 65% - Total Pengeluaran)
+  const remainingMoney = Math.max(0, maxAllowableSpending - totalExpense)
 
-  // 6. Daily Limit Baru: Sisa jatah dibagi sisa hari
+  // 3. Daily Limit: Sisa jatah dibagi sisa hari sampai gajian
   const dailySafeSpend = Math.floor(remainingMoney / Math.max(1, daysUntilPayday))
+  
+  // 4. Daily Comparison: Today vs Yesterday
+  const todayStr = today.format('YYYY-MM-DD')
+  const yesterdayStr = today.subtract(1, 'day').format('YYYY-MM-DD')
+  
+  const todayExpense = dailyTrend[todayStr]?.expense || 0
+  const yesterdayExpense = dailyTrend[yesterdayStr]?.expense || 0
+  
+  const isMoreFrugal = todayExpense < yesterdayExpense
+  const diffExpense = Math.abs(todayExpense - yesterdayExpense)
   
   // Overall Health Metrics
   const allowableExpense = maxAllowableSpending
-  const remainingBudget = Math.max(0, allowableExpense - totalExpense)
-  // --- END NEW LOGIC ---
+  const remainingBudget = remainingMoney
+  // --- END LOGIC ---
   
   // Budget Health Status
   const currentSavingsPercent = income > 0 ? Math.max(0, ((income - totalExpense) / income) * 100) : 0
@@ -145,73 +154,271 @@ export default function SmartAnalysisPanel({
 
         {/* Metrics Row */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-            <div className="flex items-center gap-2 text-slate-400 mb-1.5">
-              <Calendar size={12} className="stroke-[3]" />
-              <span className="text-[0.55rem] font-black uppercase tracking-widest">Countdown</span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-black text-slate-900 tracking-tighter">
-                {daysUntilPayday === 0 ? 'Payday!' : daysUntilPayday}
-              </span>
-              {daysUntilPayday > 0 && <span className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-widest ml-0.5">Days</span>}
-            </div>
-          </div>
+          {/* 1. Countdown Popover */}
+          <Popover.Root>
+            <Popover.Trigger asChild>
+              <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50 cursor-pointer hover:bg-slate-100/50 active:scale-[0.98] transition-all group/metric">
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={12} className="stroke-[3]" />
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest">Countdown</span>
+                  </div>
+                  <Info size={10} className="opacity-0 group-hover/metric:opacity-100 transition-opacity" />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-xl font-black text-slate-900 tracking-tighter">
+                    {daysUntilPayday === 0 ? 'Payday!' : daysUntilPayday}
+                  </span>
+                  {daysUntilPayday > 0 && <span className="text-[0.6rem] font-bold text-slate-400 uppercase tracking-widest ml-0.5">Days</span>}
+                </div>
+              </div>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content 
+                side="top" 
+                align="start" 
+                sideOffset={8}
+                className="z-[100] w-64 bg-slate-900 text-white p-4 rounded-3xl shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Calendar size={12} />
+                  </div>
+                  <span className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400">Payday Timeline</span>
+                </div>
 
-          <div className={cn(
-            "rounded-2xl p-4 border transition-all duration-300",
-            dailySafeSpend > 0 ? "bg-emerald-50/30 border-emerald-100/30" : "bg-rose-50/30 border-rose-100/30"
-          )}>
-            <div className="flex items-center gap-2 text-slate-400 mb-1.5">
-              <Wallet size={12} className="stroke-[3]" />
-              <span className="text-[0.55rem] font-black uppercase tracking-widest">Daily Limit</span>
-            </div>
-            <div className="flex items-baseline gap-1">
-              <span className={cn(
-                "text-lg font-black tracking-tight",
-                dailySafeSpend > 0 ? "text-emerald-600" : "text-rose-600"
-              )}>
-                {formatCurrency(dailySafeSpend)}
-              </span>
-            </div>
-          </div>
-        </div>
+                <div className="space-y-4 mb-4">
+                  {/* Visual Timeline */}
+                  <div className="relative pt-4 pb-2">
+                    <div className="h-1.5 bg-white/5 rounded-full w-full relative">
+                      {/* Progress Fill */}
+                      <div 
+                        className="absolute h-full bg-emerald-500 rounded-full transition-all duration-1000"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                      {/* Current Position Marker */}
+                      <div 
+                        className="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-full -top-[3px] shadow-[0_0_10px_rgba(16,185,129,0.5)] transition-all duration-1000"
+                        style={{ left: `calc(${progressPercent}% - 6px)` }}
+                      />
+                    </div>
+                    {/* Markers */}
+                    <div className="flex justify-between mt-2 text-[8px] font-bold uppercase tracking-tighter text-slate-500">
+                      <span>{prevPaydayDate.format('D MMM')}</span>
+                      <span className="text-white">{today.format('D MMM')}</span>
+                      <span>{nextPaydayDate.format('D MMM')}</span>
+                    </div>
+                  </div>
 
-        {/* Health Bar */}
-        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
+                  <div className="bg-white/5 rounded-2xl p-3 border border-white/5">
+                    <p className="text-xs font-bold text-white mb-0.5">{nextPaydayDate.format('dddd, D MMMM')}</p>
+                    <p className="text-[10px] text-slate-400 leading-relaxed italic">
+                      {daysUntilPayday > 7 ? `Sekitar ${Math.floor(daysUntilPayday / 7)} minggu lagi bos. ` : ''}
+                      {daysUntilPayday === 0 ? 'Hari ini gajian! Selamat bersenang-senang!' : `Masih ada ${daysUntilPayday} hari lagi untuk berjuang.`}
+                    </p>
+                  </div>
+                </div>
+                <Popover.Arrow className="fill-slate-900" />
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+
+          {/* 2. Daily Limit Popover */}
+          <Popover.Root>
+            <Popover.Trigger asChild>
               <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center",
-                isHealthy ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+                "rounded-2xl p-4 border cursor-pointer active:scale-[0.98] transition-all group/metric",
+                dailySafeSpend > 0 ? "bg-emerald-50/30 border-emerald-100/30 hover:bg-emerald-50/50" : "bg-rose-50/30 border-rose-100/30 hover:bg-rose-50/50"
               )}>
-                {isHealthy ? <ShieldCheck size={16} /> : <AlertCircle size={16} />}
+                <div className="flex items-center justify-between text-slate-400 mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <Wallet size={12} className="stroke-[3]" />
+                    <span className="text-[0.55rem] font-black uppercase tracking-widest">Daily Limit</span>
+                  </div>
+                  <Info size={10} className="opacity-0 group-hover/metric:opacity-100 transition-opacity" />
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className={cn(
+                    "text-lg font-black tracking-tight",
+                    dailySafeSpend > 0 ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {formatCurrency(dailySafeSpend)}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-[0.7rem] font-black text-slate-900 block">Savings Health</span>
-                <span className={cn(
-                  "text-[0.55rem] font-bold uppercase tracking-widest",
-                  isHealthy ? "text-emerald-600" : "text-rose-500"
-                )}>
-                  {isHealthy ? 'On Track' : 'Warning'}
-                </span>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className="text-md font-black text-slate-900 block leading-none">{currentSavingsPercent.toFixed(0)}%</span>
-            </div>
-          </div>
-          
-          <div className="h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
-            <div 
-              className={cn(
-                "h-full rounded-full transition-all duration-1000 ease-out",
-                isHealthy ? "bg-emerald-500" : "bg-rose-500"
-              )}
-              style={{ width: `${Math.min(100, currentSavingsPercent)}%` }}
-            />
-          </div>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content 
+                side="top" 
+                align="end" 
+                sideOffset={8}
+                className="z-[100] w-72 bg-slate-900 text-white p-5 rounded-3xl shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center">
+                    <Zap size={12} />
+                  </div>
+                  <span className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400">Rincian Per Hari</span>
+                </div>
+                
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-400 font-medium">Sisa Jatah Belanja (65%)</span>
+                    <span className="font-bold">{formatCurrency(remainingMoney)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px]">
+                    <span className="text-slate-400 font-medium">Sisa Hari</span>
+                    <span className="font-bold">{Math.max(1, daysUntilPayday)} Hari</span>
+                  </div>
+                  <div className="h-[1px] bg-white/10 w-full" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-black text-emerald-400">Jatah Harian</span>
+                    <span className="text-sm font-black">{formatCurrency(dailySafeSpend)}</span>
+                  </div>
+                </div>
+
+                <p className="text-[9px] text-slate-500 italic leading-relaxed">
+                  Rumus: (Total Jatah - Total Pengeluaran) / Sisa Hari.
+                </p>
+
+                <div className="mt-4 p-3 bg-white/5 border border-white/5 rounded-2xl">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={10} className="text-amber-400" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Daily Compare</span>
+                    </div>
+                    <span className={cn(
+                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full",
+                      isMoreFrugal ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                    )}>
+                      {isMoreFrugal ? 'More Frugal' : 'More Wasteful'}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-300 leading-relaxed">
+                      {todayExpense === 0 && yesterdayExpense === 0 ? (
+                        "Belum ada pengeluaran hari ini maupun kemarin. Pertahankan!"
+                      ) : todayExpense < yesterdayExpense ? (
+                        <>Mantap! Hari ini kamu lebih hemat <span className="text-emerald-400 font-bold">{formatCurrency(diffExpense)}</span> dibanding kemarin.</>
+                      ) : todayExpense > yesterdayExpense ? (
+                        <>Waduh, hari ini kamu lebih boros <span className="text-rose-400 font-bold">{formatCurrency(diffExpense)}</span> dibanding kemarin.</>
+                      ) : (
+                        "Pengeluaran hari ini sama persis dengan kemarin. Konsisten!"
+                      )}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5">
+                      <div className="flex-1">
+                        <p className="text-[7px] text-slate-500 uppercase font-black">Yesterday</p>
+                        <p className="text-[9px] font-bold text-slate-400">{formatCurrency(yesterdayExpense)}</p>
+                      </div>
+                      <div className="w-[1px] h-4 bg-white/10" />
+                      <div className="flex-1 text-right">
+                        <p className="text-[7px] text-slate-500 uppercase font-black">Today</p>
+                        <p className="text-[9px] font-bold text-white">{formatCurrency(todayExpense)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <Popover.Arrow className="fill-slate-900" />
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
         </div>
+
+        {/* 3. Savings Health Popover */}
+        <Popover.Root>
+          <Popover.Trigger asChild>
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all active:scale-[0.99] group/metric">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover/metric:scale-110",
+                    isHealthy ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+                  )}>
+                    {isHealthy ? <ShieldCheck size={16} /> : <AlertCircle size={16} />}
+                  </div>
+                  <div>
+                    <span className="text-[0.7rem] font-black text-slate-900 block">Savings Health</span>
+                    <span className={cn(
+                      "text-[0.55rem] font-bold uppercase tracking-widest",
+                      isHealthy ? "text-emerald-600" : "text-rose-500"
+                    )}>
+                      {isHealthy ? 'On Track' : 'Warning'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right flex items-center gap-2">
+                  <span className="text-md font-black text-slate-900 block leading-none">{currentSavingsPercent.toFixed(0)}%</span>
+                  <Info size={10} className="text-slate-300 opacity-0 group-hover/metric:opacity-100 transition-opacity" />
+                </div>
+              </div>
+              
+              <div className="h-1.5 bg-slate-200/50 rounded-full overflow-hidden">
+                <div 
+                  className={cn(
+                    "h-full rounded-full transition-all duration-1000 ease-out",
+                    isHealthy ? "bg-emerald-500" : "bg-rose-500"
+                  )}
+                  style={{ width: `${Math.min(100, currentSavingsPercent)}%` }}
+                />
+              </div>
+            </div>
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Content 
+              side="bottom" 
+              align="center" 
+              sideOffset={12}
+              className="z-[100] w-72 bg-slate-900 text-white p-5 rounded-3xl shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <div className={cn(
+                  "w-6 h-6 rounded-lg flex items-center justify-center",
+                  isHealthy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
+                )}>
+                  <ShieldCheck size={12} />
+                </div>
+                <span className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400">Kesehatan Keuangan</span>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-[10px] mb-1.5">
+                    <span className="text-slate-400">Saving Rate Saat Ini</span>
+                    <span className={cn("font-bold", isHealthy ? "text-emerald-400" : "text-rose-400")}>{currentSavingsPercent.toFixed(1)}%</span>
+                  </div>
+                  <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 w-[35%]" />
+                  </div>
+                  <div className="flex justify-between text-[8px] mt-1 text-slate-500 font-bold uppercase tracking-tighter">
+                    <span>Target Ideal (35%)</span>
+                  </div>
+                </div>
+
+                {activeCategories.length > 0 && (
+                  <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingDown size={10} className="text-rose-400" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Budget Eaters</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-slate-200">{activeCategories[0][0]}</span>
+                      <span className="text-[10px] font-black text-rose-400">{formatCurrency(activeCategories[0][1])}</span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-[9px] text-slate-400 leading-relaxed italic border-t border-white/10 pt-3">
+                  {isHealthy 
+                    ? "Pertahankan! Kamu sudah di atas batas aman menabung 35%." 
+                    : `Bahaya! Tabunganmu di bawah 35%. Kurangi belanja di kategori ${activeCategories[0]?.[0] || 'lainnya'} ya.`}
+                </p>
+              </div>
+              <Popover.Arrow className="fill-slate-900" />
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
       </div>
 
       {/* Bottom Spacer (Larger) to push content up while maintaining balance */}
