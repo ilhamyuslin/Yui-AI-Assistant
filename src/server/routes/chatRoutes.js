@@ -16,6 +16,21 @@ const { getToolHandler } = require('../../ai/tools/registry');
 
 // Users are authenticated via apiServer middleware (req.user)
 
+/**
+ * Cleans up AI generated draft data to ensure "null" or "undefined" strings 
+ * are converted to empty strings, preventing frontend validation issues.
+ */
+function sanitizeDraft(args) {
+  const sanitized = { ...args };
+  ['source_of_fund', 'category', 'destination_account'].forEach(field => {
+    const val = String(sanitized[field] || '').trim().toLowerCase();
+    if (val === 'null' || val === 'undefined' || val === '') {
+      sanitized[field] = '';
+    }
+  });
+  return sanitized;
+}
+
 // ─── GET /api/chat/history ───────────────────────────────────
 // Mengambil riwayat percakapan saat halaman chat dibuka
 router.get('/history', async (req, res) => {
@@ -115,7 +130,7 @@ router.post('/', async (req, res) => {
       }
 
       // Convert scan result to the format expected by the frontend
-      const pendingDraft = { ...scanResult, _itemType: 'transaction' };
+      const pendingDraft = { ...sanitizeDraft(scanResult), _itemType: 'transaction' };
       delete pendingDraft.is_valid_receipt;
 
       const { total_tokens } = await appendHistory(
@@ -149,7 +164,7 @@ router.post('/', async (req, res) => {
         // 1. Tool Transaksi Langsung
         if (functionName === 'request_record_transaction') {
           console.log(`[DraftDebug] AI Request: ${args.item_name}, Index: ${args.draft_index}`);
-          pendingDrafts.push({ ...args, _itemType: 'transaction' });
+          pendingDrafts.push({ ...sanitizeDraft(args), _itemType: 'transaction' });
           continue;
         }
 

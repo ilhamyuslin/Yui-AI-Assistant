@@ -13,31 +13,31 @@ import Onboarding from '@/pages/Onboarding'
 function PrivateRoute({ children }) {
   const { isAuthenticated, profile } = useAuth()
   const location = useLocation()
-  
+
   if (!isAuthenticated) return <Navigate to="/login" replace />
-  
+
   // If user is authenticated but not onboarded, redirect to onboarding
   // but allow them to stay on the onboarding page
   if (profile && !profile.is_onboarded && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />
   }
-  
+
   // If user IS onboarded but tries to access onboarding, send them home
   if (profile?.is_onboarded && location.pathname === '/onboarding') {
     return <Navigate to="/" replace />
   }
-  
+
   return children
 }
 
 function PublicRoute({ children }) {
   const { isAuthenticated, profile } = useAuth()
-  
+
   if (isAuthenticated) {
     if (profile && !profile.is_onboarded) return <Navigate to="/onboarding" replace />
     return <Navigate to="/" replace />
   }
-  
+
   return children
 }
 

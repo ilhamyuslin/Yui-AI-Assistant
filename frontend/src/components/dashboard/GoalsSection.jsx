@@ -110,7 +110,7 @@ export default function GoalsSection() {
         </button>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 -mx-1 px-1">
+      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 -mx-6 md:-mx-10 px-6 md:px-10">
         {goals.map((goal) => (
           <GoalCard key={goal.id} goal={goal} onClick={() => handleEditGoal(goal)} />
         ))}

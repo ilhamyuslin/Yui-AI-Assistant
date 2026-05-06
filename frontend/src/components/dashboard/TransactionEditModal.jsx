@@ -12,7 +12,8 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
     transaction_type: 'Expense',
     transaction_date: '',
     source_of_fund: '',
-    destination_account: ''
+    destination_account: '',
+    transaction_notes: ''
   })
   const [loading, setLoading] = useState(false)
 
@@ -25,7 +26,8 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
         transaction_type: transaction.transaction_type || 'Expense',
         transaction_date: dayjs(transaction.transaction_date).format('YYYY-MM-DD'),
         source_of_fund: transaction.source_of_fund || '',
-        destination_account: transaction.destination_account || ''
+        destination_account: transaction.destination_account || '',
+        transaction_notes: transaction.transaction_notes || ''
       })
     }
   }, [transaction])
@@ -71,7 +73,7 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Item Name */}
             <div className="space-y-2">
-              <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Detail Item / Catatan</label>
+              <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Nama Item</label>
               <input
                 type="text"
                 required
@@ -79,6 +81,18 @@ export default function TransactionEditModal({ open, onOpenChange, transaction, 
                 onChange={e => setFormData(p => ({ ...p, item_name: e.target.value }))}
                 className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
                 placeholder="Contoh: Nasi Goreng"
+              />
+            </div>
+
+            {/* Catatan */}
+            <div className="space-y-2">
+              <label className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 ml-1">Catatan</label>
+              <input
+                type="text"
+                value={formData.transaction_notes}
+                onChange={e => setFormData(p => ({ ...p, transaction_notes: e.target.value }))}
+                className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all outline-none"
+                placeholder="Tambah keterangan..."
               />
             </div>
 

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useOutletContext } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { chatApi } from '@/lib/chatApi'
 import imageCompression from 'browser-image-compression'
@@ -53,10 +53,11 @@ function AIBubble({ text }) {
         </svg>
       </div>
       {/* Bubble */}
-      <div className="max-w-[75%] px-5 py-4 rounded-2xl rounded-bl-sm bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm">
+      <div className="max-w-[75%] px-5 py-4 rounded-2xl rounded-bl-sm bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm overflow-hidden break-words">
         <div className="text-slate-700 text-sm leading-relaxed prose prose-sm prose-emerald max-w-none
           prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-strong:text-slate-800 prose-strong:font-bold
-          prose-headings:text-slate-800 prose-headings:font-bold prose-code:text-emerald-600 prose-code:bg-emerald-50 prose-code:px-1 prose-code:rounded">
+          prose-headings:text-slate-800 prose-headings:font-bold prose-code:text-emerald-600 prose-code:bg-emerald-50 prose-code:px-1 prose-code:rounded
+          prose-pre:bg-slate-900 prose-pre:text-slate-100 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto">
           <ReactMarkdown>{text}</ReactMarkdown>
         </div>
       </div>
@@ -68,7 +69,7 @@ function AIBubble({ text }) {
 function UserBubble({ text }) {
   return (
     <div className="flex items-end justify-end gap-3 mb-4 animate-in slide-in-from-bottom-2 duration-300">
-      <div className="max-w-[75%] px-5 py-4 rounded-2xl rounded-br-sm text-white text-sm leading-relaxed shadow-md"
+      <div className="max-w-[75%] px-5 py-4 rounded-2xl rounded-br-sm text-white text-sm leading-relaxed shadow-md break-words"
         style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)' }}>
         {text}
       </div>
@@ -210,6 +211,7 @@ const ACCOUNT_ICONS = [
 function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLabel }) {
   const [localName, setLocalName] = useState('');
   const [localAmount, setLocalAmount] = useState('');
+  const [localNotes, setLocalNotes] = useState('');
 
   const colors = {
     expense: {
@@ -262,7 +264,17 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
   useEffect(() => {
     setLocalName(displayTitle);
     setLocalAmount(displayAmount !== undefined && displayAmount !== null ? String(displayAmount) : '');
-  }, [displayTitle, displayAmount]);
+    setLocalNotes(item.transaction_notes || '');
+  }, [displayTitle, displayAmount, item.transaction_notes]);
+
+  const isValidSelection = (val, list) => {
+    if (!val) return false;
+    const sVal = String(val).trim().toLowerCase();
+    if (sVal === '' || sVal === 'null' || sVal === 'undefined') return false;
+    return list.some(l => String(l).toLowerCase() === sVal);
+  };
+
+  const accountNames = accounts.map(a => a.name);
 
   const handleBlur = () => {
     if (isAccount) onUpdate(idx, 'name', localName);
@@ -271,6 +283,8 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
 
     if (isAccount) onUpdate(idx, 'balance', localAmount);
     else onUpdate(idx, 'amount', localAmount);
+
+    onUpdate(idx, 'transaction_notes', localNotes);
   };
 
   return (
@@ -295,6 +309,16 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
               className="w-full bg-transparent border-none p-0 text-lg font-black text-slate-800 focus:ring-0 focus:outline-none placeholder:text-slate-300 selection:bg-slate-100"
               placeholder={isAccount ? "Nama akun..." : (isBudget ? "Kategori budget..." : "Nama transaksi...")}
             />
+            {!isAccount && !isBudget && (
+              <input
+                type="text"
+                value={localNotes}
+                onChange={(e) => setLocalNotes(e.target.value)}
+                onBlur={handleBlur}
+                className="w-full bg-transparent border-none p-0 text-[11px] font-medium text-slate-400 focus:ring-0 focus:outline-none placeholder:text-slate-200 mt-0.5 italic"
+                placeholder="Tambah catatan..."
+              />
+            )}
           </div>
           <div className="text-right">
             <div className="flex items-center justify-end">
@@ -369,7 +393,7 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
                   onChange={(e) => onUpdate(idx, 'source_of_fund', e.target.value)}
                   className={cn(
                     "w-full appearance-none bg-slate-50/50 border rounded-2xl px-4 py-2.5 text-[11px] font-black text-slate-600 focus:bg-white focus:border-slate-200 outline-none transition-all cursor-pointer",
-                    !item.source_of_fund ? "border-rose-200 bg-rose-50/30" : "border-slate-100"
+                    !isValidSelection(item.source_of_fund, accountNames) ? "border-rose-200 bg-rose-50/30" : "border-slate-100"
                   )}
                 >
                   <option value="">Dari Akun</option>
@@ -387,7 +411,7 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
                     onChange={(e) => onUpdate(idx, 'destination_account', e.target.value)}
                     className={cn(
                       "w-full appearance-none bg-blue-50/50 border rounded-2xl px-4 py-2.5 text-[11px] font-black text-blue-700 focus:bg-white focus:border-blue-200 outline-none transition-all cursor-pointer",
-                      !item.destination_account ? "border-rose-200 bg-rose-50/30" : "border-blue-100"
+                      !isValidSelection(item.destination_account, accountNames) ? "border-rose-200 bg-rose-50/30" : "border-blue-100"
                     )}
                   >
                     <option value="">Ke Akun</option>
@@ -406,7 +430,7 @@ function DraftCard({ item, idx, onUpdate, onDelete, categories, accounts, typeLa
                     onChange={(e) => onUpdate(idx, 'category', e.target.value)}
                     className={cn(
                       "w-full appearance-none bg-slate-50/50 border rounded-2xl px-4 py-2.5 text-[11px] font-black text-slate-600 text-right focus:bg-white focus:border-slate-200 outline-none transition-all cursor-pointer pr-4",
-                      !item.category ? "border-rose-200 bg-rose-50/30" : "border-slate-100"
+                      !isValidSelection(item.category, categories) ? "border-rose-200 bg-rose-50/30" : "border-slate-100"
                     )}
                   >
                     <option value="">Kategori</option>
@@ -446,17 +470,29 @@ function DraftModal({
   const typeLabel = { Expense: 'Pengeluaran', Income: 'Pemasukan', Transfer: 'Transfer' };
 
   const isInvalid = drafts.some(item => {
-    if (item._itemType === 'account') return !item.name;
-    if (item._itemType === 'budget') return !item.category;
+    if (item._itemType === 'account') return !item.name?.trim();
+    if (item._itemType === 'budget') return !item.category?.trim();
     if (item._itemType === 'account_delete' || item._itemType === 'budget_delete') return false;
 
-    // Transaksi Normal atau Transfer
-    const itemType = item.transaction_type || item.type;
-    if (itemType === 'Transfer') {
-      return !item.source_of_fund || !item.destination_account;
+    // Helper to validate if a value is selected and exists in the allowed list
+    const isValidSelection = (val, list) => {
+      if (!val) return false;
+      const sVal = String(val).trim().toLowerCase();
+      if (sVal === '' || sVal === 'null' || sVal === 'undefined') return false;
+      return list.some(l => String(l).toLowerCase() === sVal);
+    };
+
+    const accountNames = accounts.map(a => a.name);
+    const itemType = (item.transaction_type || item.type || '').toLowerCase();
+
+    if (itemType === 'transfer') {
+      return !isValidSelection(item.source_of_fund, accountNames) ||
+        !isValidSelection(item.destination_account, accountNames);
     }
-    // Pemasukan / Pengeluaran
-    return !item.source_of_fund || !item.category;
+
+    // Default: Expense / Income
+    return !isValidSelection(item.source_of_fund, accountNames) ||
+      !isValidSelection(item.category, categories);
   });
 
   return (
@@ -599,6 +635,8 @@ function EmptyState() {
 
 // ─── Main Chat Page ────────────────────────────────────────────
 export default function Chat() {
+  const { setIsNavigationBlocked } = useOutletContext() || {}
+
   const {
     messages,
     totalTokens,
@@ -648,9 +686,8 @@ export default function Chat() {
     }
   }, [isKeyboardOpen]);
 
-  // Focus input on mount & load data
+  // Load data on mount
   useEffect(() => {
-    inputRef.current?.focus()
     loadAuxData()
   }, [])
 
@@ -681,6 +718,7 @@ export default function Chat() {
     addMessage({ role: 'user', type: 'text', content: text || (currentAttachment ? '📸 [Kirim Gambar Struk]' : '') })
 
     setIsLoading(true)
+    setIsNavigationBlocked?.(true)
     let shouldFocusAfterSend = true;
 
     try {
@@ -727,6 +765,7 @@ export default function Chat() {
       })
     } finally {
       setIsLoading(false)
+      setIsNavigationBlocked?.(false)
       if (shouldFocusAfterSend) {
         setTimeout(() => inputRef.current?.focus(), 100)
       } else {
@@ -739,6 +778,7 @@ export default function Chat() {
   // ── Confirm All Drafts ───────────────────────────────────────
   const handleConfirmAll = async () => {
     setIsLoading(true)
+    setIsNavigationBlocked?.(true)
     try {
       let successCount = 0;
 
@@ -778,6 +818,7 @@ export default function Chat() {
       toast.error(`Gagal memproses: ${err.message}`)
     } finally {
       setIsLoading(false)
+      setIsNavigationBlocked?.(false)
     }
   }
 
@@ -817,7 +858,7 @@ export default function Chat() {
         setAttachment(imageData)
         setAttachmentPreview(URL.createObjectURL(compressedFile))
         setIsProcessingImage(false)
-        
+
         // Auto-send immediately
         handleSend(imageData)
       }
@@ -1028,7 +1069,7 @@ export default function Chat() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={totalTokens >= MAX_TOKENS ? "Limit token tercapai!" : "Ketik pesan . . ."}
-                disabled={isLoading || totalTokens >= MAX_TOKENS}
+                disabled={isLoading || loadingHistory || totalTokens >= MAX_TOKENS}
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-slate-700 placeholder:text-slate-400 resize-none outline-none px-3 py-2.5 min-h-[44px] max-h-[140px] leading-relaxed disabled:opacity-50"
                 style={{ overflowY: input.split('\n').length > 3 ? 'auto' : 'hidden' }}

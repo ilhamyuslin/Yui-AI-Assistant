@@ -47,10 +47,8 @@ export default function Overview() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deleteConfig, setDeleteConfig] = useState({ id: null, type: 'transaction' })
   const [allCategories, setAllCategories] = useState([])
-  const [pullDistance, setPullDistance] = useState(0)
 
   const touchStartRef = useRef(0)
-  const startYRef = useRef(0)
 
   const cycleRange = useMemo(() => getQuickFilterRange('cycle', payDay), [payDay])
   const strictRange = useMemo(() => {
@@ -66,18 +64,18 @@ export default function Overview() {
   const statsQuery = useStats(strictRange?.startDate, strictRange?.endDate, selectedCategories)
   const trendQuery = useStats(dateRange?.startDate, dateRange?.endDate, selectedCategories)
   const stableQuery = useStats(cycleRange.startDate, cycleRange.endDate)
-  
-  const { transactions, loading: txLoading, error: txError, refresh: refreshTx, remove, update, add } = useTransactions({ 
-    startDate: strictRange?.startDate, 
-    endDate: strictRange?.endDate, 
-    category: selectedCategories 
+
+  const { transactions, loading: txLoading, error: txError, refresh: refreshTx, remove, update, add } = useTransactions({
+    startDate: strictRange?.startDate,
+    endDate: strictRange?.endDate,
+    category: selectedCategories
   })
-  
-  const { budgets, loading: budgetLoading, update: updateBudget, remove_budget: removeBudget, rename: renameBudget, fetch: refreshBudgets } = useBudgets({ 
-    startDate: cycleRange.startDate, 
-    endDate: cycleRange.endDate 
+
+  const { budgets, loading: budgetLoading, update: updateBudget, remove_budget: removeBudget, rename: renameBudget, fetch: refreshBudgets } = useBudgets({
+    startDate: cycleRange.startDate,
+    endDate: cycleRange.endDate
   })
-  
+
   const { accounts, totalAssets, loading: accountLoading, upsertAccount, deleteAccount, refresh: refreshAccounts } = useAccounts()
   const { investments, totalPortfolio, totalCost, loading: investLoading, add: addInvestment, update: updateInvestment, remove: removeInvestment, fetch: refreshInvestments } = useInvestments()
 
@@ -102,7 +100,7 @@ export default function Overview() {
         const pd = cycleData.payDay || 25
         setPayDay(pd)
         setAllCategories(catData || [])
-        
+
         const initialRange = getQuickFilterRange('cycle', pd)
         setDateRange(initialRange)
       } catch (err) {
@@ -111,6 +109,28 @@ export default function Overview() {
     }
     init()
   }, [])
+
+  // Listen for data updates from other components (like Chat)
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      // Background refetch without blocking UI
+      statsQuery.refetch()
+      trendQuery.refetch()
+      stableQuery.refetch()
+      refreshTx()
+      refreshBudgets()
+      refreshAccounts()
+      refreshInvestments()
+    }
+
+    window.addEventListener('transaction-saved', handleDataUpdate)
+    window.addEventListener('accounts-updated', handleDataUpdate)
+
+    return () => {
+      window.removeEventListener('transaction-saved', handleDataUpdate)
+      window.removeEventListener('accounts-updated', handleDataUpdate)
+    }
+  }, [statsQuery, trendQuery, stableQuery, refreshTx, refreshBudgets, refreshAccounts, refreshInvestments])
 
   const handleQuickFilter = (key) => {
     setActiveFilter(key)
@@ -134,32 +154,9 @@ export default function Overview() {
     }
   }
 
-  const handleTouchStartGlobal = (e) => {
-    if (window.scrollY === 0) {
-      startYRef.current = e.touches[0].clientY
-    }
-  }
-
-  const handleTouchMoveGlobal = (e) => {
-    if (startYRef.current > 0 && window.scrollY === 0) {
-      const diff = e.touches[0].clientY - startYRef.current
-      if (diff > 0) {
-        const dist = Math.min(diff * 0.4, 120)
-        setPullDistance(dist)
-      }
-    }
-  }
-
-  const handleTouchEndGlobal = () => {
-    if (pullDistance > 70 && !isRefreshing) {
-      handleRefresh()
-    }
-    setPullDistance(0)
-    startYRef.current = 0
-  }
 
   const handleCategoryToggle = (cat) => {
-    setSelectedCategories(prev => 
+    setSelectedCategories(prev =>
       prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
     )
   }
@@ -242,10 +239,10 @@ export default function Overview() {
 
     Object.entries(stats.categories).forEach(([cat, amount]) => {
       const actualAmount = Math.abs(amount || 0)
-      if (actualAmount <= 0) return 
+      if (actualAmount <= 0) return
 
       const budget = budgets.find(b => b.category === cat)
-      const group = budget?.behavior_group || 'Want' 
+      const group = budget?.behavior_group || 'Want'
 
       if (totals[group] !== undefined) {
         totals[group] += actualAmount
@@ -296,28 +293,7 @@ export default function Overview() {
   }
 
   return (
-    <div 
-      className="relative w-full"
-      onTouchStart={handleTouchStartGlobal}
-      onTouchMove={handleTouchMoveGlobal}
-      onTouchEnd={handleTouchEndGlobal}
-    >
-      {/* Pull to Refresh Indicator */}
-      <div 
-        className={cn(
-          "fixed left-0 right-0 flex justify-center z-[100] pointer-events-none transition-all duration-300",
-          isRefreshing ? "top-6 opacity-100" : "opacity-0"
-        )}
-        style={!isRefreshing ? { 
-          top: `${pullDistance - 30}px`, 
-          opacity: Math.min(pullDistance / 70, 1),
-          transform: `scale(${Math.min(pullDistance / 70, 1)}) rotate(${pullDistance * 3}deg)`
-        } : {}}
-      >
-        <div className="bg-white p-2.5 rounded-full shadow-2xl border border-slate-100 flex items-center justify-center">
-          <Loader2 className={cn("w-5 h-5 text-emerald-600", isRefreshing && "animate-spin")} />
-        </div>
-      </div>
+    <div className="relative w-full pb-32 lg:pb-10">
 
       {/* ── Page Header & Advanced Filters ── */}
       <div className="animate-fade-in flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 mt-2">
@@ -341,7 +317,7 @@ export default function Overview() {
 
       {/* Sticky Quick Filters Widget */}
       <div className="sticky top-[0.5rem] z-40 mb-8 lg:static lg:mb-10 lg:z-auto">
-        <div className="flex items-center bg-white/70 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 gap-1 w-full sm:w-fit">
+        <div className="flex items-center bg-white/70 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 gap-1 w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth">
           {/* Refresh Button */}
           <button
             onClick={handleRefresh}
@@ -528,7 +504,7 @@ export default function Overview() {
 
           {/* Budget Monitor Column — Auto Layout applied */}
           <div className="lg:col-span-1 flex flex-col">
-            <PaceIndicator 
+            <PaceIndicator
               totalBudget={totalBudget}
               totalActual={totalActual}
               loading={budgetLoading}
@@ -593,7 +569,7 @@ export default function Overview() {
         <GoalsSection />
 
         {/* ── 6. Section: Transaction Analysis ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(400px,_max-content)_1fr] gap-6 mt-6 mb-2">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_1fr] gap-6 mt-6 mb-2">
           {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
           <div className="flex flex-col gap-8 h-full">
             <div className="bg-gradient-to-br from-white to-amber-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit">
@@ -665,11 +641,11 @@ export default function Overview() {
           onSave={async (category, amount, behaviorGroup) => {
             try {
               await updateBudget({ category, amount, behavior_group: behaviorGroup })
-              
+
               // Refresh category list (opsional kalau category baru)
               const { data: catData } = await statsApi.getCategories()
               setAllCategories(catData || [])
-              
+
               toast.success(`Budget ${category} disimpan`)
               return true
             } catch (err) {
@@ -680,10 +656,10 @@ export default function Overview() {
           onRemove={async (category) => {
             try {
               await removeBudget(category)
-              
+
               const { data: catData } = await statsApi.getCategories()
               setAllCategories(catData || [])
-              
+
               toast.success(`Budget ${category} dihapus`)
               return true
             } catch (err) {
@@ -694,10 +670,10 @@ export default function Overview() {
           onRename={async (oldName, newName) => {
             try {
               await renameBudget({ oldName, newName })
-              
+
               const { data: catData } = await statsApi.getCategories()
               setAllCategories(catData || [])
-              
+
               toast.success(`Kategori diubah ke ${newName}`)
               return true
             } catch (err) {
@@ -712,21 +688,21 @@ export default function Overview() {
           open={isDeleteConfirmOpen}
           onOpenChange={setIsDeleteConfirmOpen}
           title={
-            deleteConfig.type === 'transaction' ? "Hapus Transaksi?" : 
-            deleteConfig.type === 'account' ? "Hapus Akun Aset?" : 
-            "Hapus Investasi?"
+            deleteConfig.type === 'transaction' ? "Hapus Transaksi?" :
+              deleteConfig.type === 'account' ? "Hapus Akun Aset?" :
+                "Hapus Investasi?"
           }
           description={
             deleteConfig.type === 'transaction'
               ? "Data transaksi ini akan dihapus permanen dari riwayat keuangan Anda. Lanjutkan?"
               : deleteConfig.type === 'account'
-              ? "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
-              : "Data investasi ini akan dihapus permanen dari portofolio Anda. Lanjutkan?"
+                ? "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
+                : "Data investasi ini akan dihapus permanen dari portofolio Anda. Lanjutkan?"
           }
           confirmText={
-            deleteConfig.type === 'transaction' ? "Ya, Hapus Data" : 
-            deleteConfig.type === 'account' ? "Ya, Hapus Akun" : 
-            "Ya, Hapus Investasi"
+            deleteConfig.type === 'transaction' ? "Ya, Hapus Data" :
+              deleteConfig.type === 'account' ? "Ya, Hapus Akun" :
+                "Ya, Hapus Investasi"
           }
           onConfirm={confirmDelete}
         />

@@ -101,7 +101,7 @@ export default function MetricCards({ stats, loading }) {
         return (
           <div
             key={card.type}
-            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2rem] py-3 sm:py-4 px-5 sm:px-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden"
+            className="group relative bg-white/60 backdrop-blur-xl border border-white rounded-[2rem] py-3 sm:py-4 px-4 sm:px-6 transition-all duration-300 hover:shadow-2xl hover:shadow-slate-200/50 hover:-translate-y-1 overflow-hidden min-w-0"
           >
             {/* Subtle Gradient Glow */}
             <div className={cn(
@@ -133,7 +133,7 @@ export default function MetricCards({ stats, loading }) {
               </div>
 
               <div>
-                <h3 className="transition-all truncate">
+                <h3 className="transition-all truncate w-full">
                   {renderValue(card.type)}
                 </h3>
               </div>

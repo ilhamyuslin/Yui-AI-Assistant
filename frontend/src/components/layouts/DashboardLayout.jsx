@@ -74,6 +74,7 @@ export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const [isNavigationBlocked, setIsNavigationBlocked] = useState(false)
 
   const { accounts, refresh: refreshAccounts } = useAccounts()
   const { categories, refresh: refreshCategories } = useCategories()
@@ -231,6 +232,7 @@ export default function DashboardLayout() {
                       ? 'bg-emerald-50 text-emerald-600'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
                     collapsed && 'justify-center px-0 w-[48px] mx-auto',
+                    isNavigationBlocked && 'opacity-50 pointer-events-none cursor-not-allowed'
                   )}
                 >
                   {({ isActive }) => (
@@ -281,8 +283,10 @@ export default function DashboardLayout() {
               'flex items-center rounded-2xl text-[0.8rem] font-bold text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-all text-left whitespace-nowrap overflow-hidden group',
               collapsed
                 ? 'justify-center w-10 h-10'
-                : 'gap-3.5 w-full px-4 py-3'
+                : 'gap-3.5 w-full px-4 py-3',
+              isNavigationBlocked && 'opacity-50 pointer-events-none'
             )}
+            disabled={isNavigationBlocked}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               className="flex-shrink-0 transition-transform duration-300 group-hover:translate-x-0.5">
@@ -337,13 +341,13 @@ export default function DashboardLayout() {
         <main className={cn(
           "flex-1 relative min-h-0 bg-transparent lg:pt-0 lg:pb-0 transition-all duration-300 overscroll-none",
           !isKeyboardOpen ? "pt-[71px] pb-16" : "pt-[71px] pb-0",
-          isChat ? "overflow-hidden" : "overflow-y-auto no-scrollbar"
+          isChat ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden no-scrollbar"
         )}>
           <div className={cn(
             "max-w-[1600px] w-full mx-auto h-full",
             !isChat ? "p-6 md:p-10" : "p-0"
           )}>
-            <Outlet />
+            <Outlet context={{ setIsNavigationBlocked }} />
           </div>
         </main>
 
@@ -366,7 +370,8 @@ export default function DashboardLayout() {
                     "flex items-center gap-2 px-4 py-2.5 rounded-full transition-all duration-500",
                     isActive
                       ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
-                      : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50/50"
+                      : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50/50",
+                    isNavigationBlocked && 'opacity-50 pointer-events-none cursor-not-allowed'
                   )}
                 >
                   {({ isActive }) => (
@@ -394,7 +399,11 @@ export default function DashboardLayout() {
         {isDashboard && (
           <button
             onClick={() => setIsTransactionModalOpen(true)}
-            className="fixed bottom-[90px] lg:bottom-[34px] left-1/2 -translate-x-1/2 z-[110] group flex items-center gap-2.5 p-1.5 pr-5 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:shadow-emerald-200/40 hover:scale-105 active:scale-95 transition-all duration-500"
+            className={cn(
+              "fixed bottom-[90px] lg:bottom-[34px] left-1/2 -translate-x-1/2 z-[110] group flex items-center gap-2.5 p-1.5 pr-5 bg-white/40 backdrop-blur-3xl border border-white/50 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.15)] hover:shadow-emerald-200/40 hover:scale-105 active:scale-95 transition-all duration-500",
+              isNavigationBlocked && 'opacity-50 pointer-events-none scale-95 grayscale'
+            )}
+            disabled={isNavigationBlocked}
           >
             <div className="w-9 h-9 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg group-hover:rotate-90 transition-transform duration-500">
               <Plus size={18} strokeWidth={3} />

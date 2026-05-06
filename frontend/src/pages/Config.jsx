@@ -3,8 +3,9 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { configApi } from '@/lib/api'
 import { useConfig } from '@/hooks/useConfig'
+import { useProfile } from '@/hooks/useProfile'
 
-const GEMINI_MODELS = [
+const DEFAULT_MODELS = [
   'gemma-4-26b-a4b-it',
   'gemma-4-31b-it',
 ]
@@ -28,6 +29,8 @@ function InputField({ label, id, type = 'text', value, onChange, placeholder, hi
 
 export default function Config() {
   const { config, loading, isSaving, update } = useConfig()
+  const { profile } = useProfile()
+  const isAdmin = profile?.role === 'admin'
   const [testingGemini, setTestingGemini] = useState(false)
   const [isEditingGemma, setIsEditingGemma] = useState(false)
   const [testResultGemma, setTestResultGemma] = useState(null)
@@ -37,6 +40,7 @@ export default function Config() {
     gemini_model: '',
     system_instruction: '',
   })
+  const [fetchedModels, setFetchedModels] = useState(DEFAULT_MODELS)
 
   useEffect(() => {
     if (config) {
@@ -45,9 +49,32 @@ export default function Config() {
         gemini_model: config.gemini_model || '',
         system_instruction: config.system_instruction || '',
       })
-      if (config.gemini_api_key) setIsEditingGemma(false)
+      if (config.gemini_api_key) {
+        setIsEditingGemma(false)
+        fetchModels(config.gemini_api_key)
+      }
     }
   }, [config])
+
+  const fetchModels = async (key) => {
+    if (!key) return
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`)
+      const data = await res.json()
+      if (res.ok && data.models) {
+        // FILTER: Cuma ambil model yang ada nama "gemma" nya
+        const gemmaOnly = data.models
+          .filter(m => m.name.toLowerCase().includes('gemma') || (m.displayName && m.displayName.toLowerCase().includes('gemma')))
+          .map(m => m.name.replace('models/', '')) // Kita ambil ID nya aja biar rapi
+
+        if (gemmaOnly.length > 0) {
+          setFetchedModels(gemmaOnly)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch gemma models:', err)
+    }
+  }
 
   const set = (key) => (e) => {
     setForm(f => ({ ...f, [key]: e.target.value }))
@@ -74,6 +101,7 @@ export default function Config() {
       if (res.ok) {
         setTestResultGemma({ response: 'API Key Valid' })
         toast.success('AI Engine Berhasil Terkoneksi')
+        fetchModels(form.gemini_api_key) // Tarik model terbaru pas tes berhasil
       } else {
         const errorMsg = data.error?.message || 'API Key salah atau tidak valid'
         toast.error(`Gagal: ${errorMsg}`)
@@ -92,7 +120,7 @@ export default function Config() {
   }
 
   return (
-    <div className="relative w-full pb-16">
+    <div className="relative w-full pb-32 lg:pb-10">
       {/* ── Page Header ── */}
       <div className="animate-fade-in flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 mt-2">
         <div className="flex flex-wrap items-center gap-4 min-w-0">
@@ -154,24 +182,26 @@ export default function Config() {
               {config?._has_gemini_key && <span className="ml-auto text-[8px] sm:text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 sm:px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-100 shadow-sm">Aktif</span>}
             </div>
             <div className="p-5 sm:p-8 flex flex-col gap-6 bg-gradient-to-b from-transparent to-slate-50/30">
-              <div className="relative group">
-                <div className={cn("transition-all duration-300", !isEditingGemma && "opacity-50 pointer-events-none grayscale-[0.5]")}>
-                  <InputField
-                    label="API Key (Credential)"
-                    id="geminiKey"
-                    type={isEditingGemma ? "text" : "password"}
-                    value={form.gemini_api_key}
-                    onChange={set('gemini_api_key')}
-                    placeholder="AIza..."
-                    hint="Kunci akses Google AI Studio."
-                  />
-                </div>
-                {!isEditingGemma && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-2xl backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-white/80 px-3 py-1.5 rounded-full shadow-sm">Key Terkunci</p>
+              {isAdmin && (
+                <div className="relative group">
+                  <div className={cn("transition-all duration-300", !isEditingGemma && "opacity-50 pointer-events-none grayscale-[0.5]")}>
+                    <InputField
+                      label="API Key (Credential)"
+                      id="geminiKey"
+                      type={isEditingGemma ? "text" : "password"}
+                      value={form.gemini_api_key}
+                      onChange={set('gemini_api_key')}
+                      placeholder="AIza..."
+                      hint="Kunci akses Google AI Studio."
+                    />
                   </div>
-                )}
-              </div>
+                  {!isEditingGemma && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/5 rounded-2xl backdrop-blur-[1px] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-white/80 px-3 py-1.5 rounded-full shadow-sm">Key Terkunci</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex flex-col gap-2.5">
                 <label htmlFor="geminiModel" className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Arsitektur Model AI</label>
@@ -182,17 +212,19 @@ export default function Config() {
                   className="w-full px-5 py-4 rounded-2xl border border-slate-200/60 bg-white/50 backdrop-blur-xl text-[12px] sm:text-[13px] font-bold text-slate-800 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-inner shadow-slate-100/50 appearance-none"
                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1.25rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1em 1em' }}
                 >
-                  {GEMINI_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
+                  {fetchedModels.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => isEditingGemma ? handleCancelGemma() : setIsEditingGemma(true)}
-                  className={cn("flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl text-[10px] font-black border-2 uppercase tracking-widest", isEditingGemma ? "border-rose-100 text-rose-600 bg-rose-50" : "border-slate-100 text-slate-600 hover:bg-slate-50")}
-                >
-                  {isEditingGemma ? 'Batal' : 'Ubah Key'}
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => isEditingGemma ? handleCancelGemma() : setIsEditingGemma(true)}
+                    className={cn("flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl text-[10px] font-black border-2 uppercase tracking-widest", isEditingGemma ? "border-rose-100 text-rose-600 bg-rose-50" : "border-slate-100 text-slate-600 hover:bg-slate-50")}
+                  >
+                    {isEditingGemma ? 'Batal' : 'Ubah Key'}
+                  </button>
+                )}
                 <button
                   onClick={handleTestGemini}
                   disabled={testingGemini || !form.gemini_api_key}
@@ -217,30 +249,32 @@ export default function Config() {
           </div>
 
           {/* Card System Instruction */}
-          <div className="bg-white/60 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden">
-            <div className="px-5 sm:px-8 py-5 sm:py-6 border-b border-white/60 bg-white/40 flex items-center gap-4 sm:gap-5">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-2xl flex items-center justify-center bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
+          {isAdmin && (
+            <div className="bg-white/60 backdrop-blur-2xl rounded-3xl sm:rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white overflow-hidden">
+              <div className="px-5 sm:px-8 py-5 sm:py-6 border-b border-white/60 bg-white/40 flex items-center gap-4 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0 rounded-2xl flex items-center justify-center bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-base sm:text-lg font-black text-slate-800 tracking-tight">System Instruction</p>
+                  <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Instruksi untuk AI</p>
+                </div>
               </div>
-              <div>
-                <p className="text-base sm:text-lg font-black text-slate-800 tracking-tight">System Instruction</p>
-                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Instruksi untuk AI</p>
+              <div className="p-5 sm:p-8 bg-gradient-to-b from-transparent to-slate-50/30">
+                <InputField
+                  label="Instruksi Utama"
+                  id="sysInstruction"
+                  value={form.system_instruction}
+                  onChange={set('system_instruction')}
+                  placeholder="Kamu adalah asisten keuangan pribadi bernama Yui..."
+                  hint="Sangat krusial: Mengatur bagaimana AI bersikap, memformat laporan, dan menjawab chat."
+                  rows={10}
+                />
               </div>
             </div>
-            <div className="p-5 sm:p-8 bg-gradient-to-b from-transparent to-slate-50/30">
-              <InputField
-                label="Instruksi Utama"
-                id="sysInstruction"
-                value={form.system_instruction}
-                onChange={set('system_instruction')}
-                placeholder="Kamu adalah asisten keuangan pribadi bernama Yui..."
-                hint="Sangat krusial: Mengatur bagaimana AI bersikap, memformat laporan, dan menjawab chat."
-                rows={10}
-              />
-            </div>
-          </div>
+          )}
 
         </div>
       )}

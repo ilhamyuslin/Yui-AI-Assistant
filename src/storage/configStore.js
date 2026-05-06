@@ -28,10 +28,10 @@ async function getConfig(userId) {
     console.log(`[ConfigStore] Error or Not Found: ${configError.message}`);
   }
 
-  // 2. Get Cycle Day from Profiles
+  // 2. Get Cycle Day and Names from Profiles
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('budget_cycle_day')
+    .select('budget_cycle_day, full_name, nickname')
     .eq('id', userId)
     .single();
 
@@ -47,6 +47,8 @@ async function getConfig(userId) {
     gemini_model: config.gemini_model || DEFAULT_CONFIG.gemini_model,
     system_instruction: config.system_instruction || DEFAULT_CONFIG.system_instruction,
     budget_cycle_day: profileData?.budget_cycle_day || 1,
+    full_name: profileData?.full_name || '',
+    nickname: profileData?.nickname || '',
   };
 
   console.log(`[ConfigStore] Security Check - User: ${userId}, Key Valid: ${!!actualApiKey}`);

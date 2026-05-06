@@ -195,9 +195,9 @@ export default function Profile() {
   )
 
   return (
-    <div className="relative w-full pb-16">
+    <div className="relative w-full pb-32 lg:pb-10">
       {/* ── Page Header ── */}
-      <div className="animate-fade-in flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 mt-2">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8 mt-2">
         <div>
           <h1 className="text-2xl sm:text-3xl lg:text-[2.5rem] font-black text-slate-900 tracking-tight leading-none mb-2">
             Profile Akun
@@ -209,7 +209,7 @@ export default function Profile() {
 
       </div>
 
-      <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
         {/* Kolom Kiri: Info Identitas */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className="flex-grow bg-white/60 backdrop-blur-2xl rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-white p-6 sm:p-8 flex flex-col">
@@ -280,7 +280,7 @@ export default function Profile() {
             <button
               onClick={handleSave}
               disabled={isSaving || loading}
-              className="mt-8 w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-xs font-black text-white transition-all disabled:opacity-60 bg-slate-900 shadow-xl shadow-slate-200 hover:bg-emerald-600 hover:shadow-emerald-500/20 active:scale-95"
+              className="mt-8 w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-xs font-black text-white transition-all disabled:opacity-60 bg-emerald-600 shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 active:scale-95"
             >
               {isSaving ? (
                 <span className="flex items-center gap-3">
@@ -377,7 +377,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={isUpdatingPassword}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-xs font-black text-white transition-all disabled:opacity-60 bg-slate-900 shadow-xl shadow-slate-200 hover:bg-rose-600 hover:shadow-rose-500/20 active:scale-95"
+                className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-xs font-black text-white transition-all disabled:opacity-60 bg-emerald-600 shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 active:scale-95"
               >
                 {isUpdatingPassword ? (
                   <span className="flex items-center gap-3">
@@ -422,7 +422,7 @@ export default function Profile() {
                 toast.dismiss(toastId)
                 navigate('/login')
               }}
-              className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-slate-200 hover:shadow-slate-300 active:scale-95"
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-emerald-500/20 active:scale-95"
             >
               LOGOUT & LOGIN SEKARANG
             </button>

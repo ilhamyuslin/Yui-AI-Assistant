@@ -173,11 +173,11 @@ export default function InvestmentSection({ investments, totalPortfolio, totalCo
         </div>
 
         {/* 2. Horizontal Scroll Cards */}
-        <div className="flex-1 min-w-0 relative -mx-8">
+        <div className="flex-1 min-w-0 relative -mx-6 md:-mx-10">
           <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-[#f8fafc] to-transparent z-10 pointer-events-none" />
           <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-[#f8fafc] to-transparent z-10 pointer-events-none" />
 
-          <div className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth h-full px-8 py-4 -my-4">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar scroll-smooth h-full px-6 md:px-10 py-4 -my-4">
             <style dangerouslySetInnerHTML={{ __html: `.no-scrollbar::-webkit-scrollbar { display: none; }` }} />
 
             {loading ? (
