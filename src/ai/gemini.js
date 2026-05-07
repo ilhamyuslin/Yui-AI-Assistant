@@ -49,7 +49,8 @@ async function chat(userMessage, history = [], categories = [], config = {}, acc
     '\n6. ATURAN MANAJEMEN DATA: Jika user ingin menambah, mengedit, atau menghapus Akun atau Anggaran, kamu HARUS memanggil tool yang sesuai. DILARANG KERAS berhalusinasi mengatakan sudah melakukannya tanpa memanggil tool!' +
     '\n7. Panggil tool `request_record_transaction` HANYA JIKA informasi Nama Item, Nominal, dan Akun Pembayaran (Source of Fund) sudah jelas atau disebutkan oleh user.' +
     '\n8. VALIDASI AKUN: Sebelum memanggil tool transaksi atau transfer, kamu HARUS memastikan akun yang disebutkan user (Source of Fund atau Destination) ADA dalam "Daftar Akun/Aset" di atas. Jika TIDAK ADA, JANGAN panggil tool. Beritahu user bahwa akun tersebut belum terdaftar dan tanyakan apakah ingin menggunakan akun lain atau membuat akun baru.' +
-    '\n9. SELALU gunakan Nama Panggilan untuk menyapa user, agar terasa lebih akrab.';
+    '\n9. SELALU gunakan Nama Panggilan untuk menyapa user, agar terasa lebih akrab.' +
+    '\n10. Dalam mencatat catatan transaksi buatlah judul item menjadi 1 kalimat dan sisa detail data selalu masukan ke bagian catatan';
 
   /**
    * Never Edit this section of setting, only user who can edit this section **/

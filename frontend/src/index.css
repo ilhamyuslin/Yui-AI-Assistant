@@ -97,3 +97,20 @@
     scrollbar-width: none;
   }
 }
+@layer utilities {
+  @keyframes bounce-slow {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+  .animate-bounce-slow {
+    animation: bounce-slow 2s infinite ease-in-out;
+  }
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .animate-spin-slow {
+    animation: spin-slow 4s linear infinite;
+  }
+}

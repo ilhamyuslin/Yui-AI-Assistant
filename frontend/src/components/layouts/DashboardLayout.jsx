@@ -2,10 +2,11 @@ import { useState, useEffect, Suspense, lazy } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { cn } from '@/lib/utils'
-import { Plus, LogOut, AlertTriangle } from 'lucide-react'
+import { Plus, LogOut, AlertTriangle, HelpCircle } from 'lucide-react'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useFinancial'
 import { useCategories } from '@/hooks/useCategories'
+import { useTour } from '@/context/TourContext'
 import { toast } from 'sonner'
 
 const TransactionModal = lazy(() => import('@/components/dashboard/TransactionModal'))
@@ -69,6 +70,7 @@ const NAV_ITEMS = [
 
 export default function DashboardLayout() {
   const { logout } = useAuth()
+  const { startTour } = useTour()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -234,6 +236,7 @@ export default function DashboardLayout() {
                     collapsed && 'justify-center px-0 w-[48px] mx-auto',
                     isNavigationBlocked && 'opacity-50 pointer-events-none cursor-not-allowed'
                   )}
+                  id={item.to === '/chat' ? 'tour-nav-chat-desktop' : item.to === '/profile' ? 'tour-nav-profile-desktop' : undefined}
                 >
                   {({ isActive }) => (
                     <>
@@ -277,6 +280,26 @@ export default function DashboardLayout() {
             </span>
           </div>
 
+          <div className="w-full h-[1px] bg-slate-100 my-2" />
+
+          {/* Product Tour Trigger */}
+          <button
+            onClick={() => {
+              if (mobileOpen) setMobileOpen(false)
+              startTour()
+            }}
+            className={cn(
+              'flex items-center rounded-2xl text-[0.8rem] font-bold text-emerald-600 bg-emerald-50/50 hover:bg-emerald-100/50 transition-all text-left whitespace-nowrap overflow-hidden group',
+              collapsed
+                ? 'justify-center w-10 h-10'
+                : 'gap-3.5 w-full px-4 py-3',
+            )}
+          >
+            <HelpCircle size={18} strokeWidth={2.5}
+              className="flex-shrink-0 transition-transform duration-300 group-hover:rotate-12" />
+            <span className={cn('transition-all duration-500', collapsed ? 'opacity-0 w-0 invisible' : 'opacity-100 w-auto')}>Pelajari Fitur</span>
+          </button>
+
           <button
             onClick={handleLogout}
             className={cn(
@@ -312,6 +335,13 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={startTour}
+              className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-full transition-all duration-300"
+              title="Pelajari Fitur"
+            >
+              <HelpCircle size={18} strokeWidth={2.5} />
+            </button>
             <NavLink
               to="/config"
               className={({ isActive }) => cn(
@@ -326,7 +356,7 @@ export default function DashboardLayout() {
             </NavLink>
             <button
               onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-all duration-300"
+              className="p-2 text-rose-300/80 hover:bg-rose-50 rounded-full transition-all duration-300"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -373,6 +403,7 @@ export default function DashboardLayout() {
                       : "text-slate-500 hover:text-emerald-600 hover:bg-emerald-50/50",
                     isNavigationBlocked && 'opacity-50 pointer-events-none cursor-not-allowed'
                   )}
+                  id={item.to === '/chat' ? 'tour-nav-chat-mobile' : item.to === '/profile' ? 'tour-nav-profile-mobile' : undefined}
                 >
                   {({ isActive }) => (
                     <>

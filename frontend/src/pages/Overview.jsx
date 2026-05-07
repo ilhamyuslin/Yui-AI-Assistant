@@ -91,7 +91,7 @@ export default function Overview() {
   const comparisonRanges = useMemo(() => {
     const today = dayjs().startOf('day')
     const currentStart = dayjs(cycleRange.startDate)
-    
+
     // 1. Last Cycle MTD (Apple-to-apple comparison)
     const prevCycleStart = getActualPayday(currentStart.subtract(1, 'month'), payDay)
     const daysSinceCycleStart = today.diff(currentStart, 'day')
@@ -141,7 +141,14 @@ export default function Overview() {
   const error = statsError || txError
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function init() {
+      // Add a small delay to allow Auth session to stabilize
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (!isMounted) return;
+
       try {
         const [{ data: cycleData }, { data: catData }] = await Promise.all([
           configApi.getCycle(),
@@ -154,10 +161,17 @@ export default function Overview() {
         const initialRange = getQuickFilterRange('cycle', pd)
         setDateRange(initialRange)
       } catch (err) {
+        // Silence AbortErrors as they are usually intentional/concurrent refresh results
+        if (err.name === 'AbortError' || err.message?.includes('Lock was stolen')) {
+          console.log('[Overview] Initial fetch aborted (concurrent request)');
+          return;
+        }
         console.error('Failed to init filters:', err)
       }
     }
     init()
+
+    return () => { isMounted = false };
   }, [])
 
   // Listen for data updates from other components (like Chat)
@@ -366,7 +380,7 @@ export default function Overview() {
       </div>
 
       {/* Sticky Quick Filters Widget */}
-      <div className="sticky top-[0.5rem] z-40 mb-8 lg:static lg:mb-10 lg:z-auto">
+      <div className="sticky top-[0.5rem] z-40 mb-8 lg:static lg:mb-10 lg:z-auto" id="tour-filters">
         <div className="flex items-center bg-white/70 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/50 gap-1 w-full sm:w-fit overflow-x-auto no-scrollbar scroll-smooth">
           {/* Refresh Button */}
           <button
@@ -433,7 +447,7 @@ export default function Overview() {
                   <span className="text-[0.7rem] font-black text-slate-400 uppercase tracking-wider">Kategori</span>
                   {selectedCategories.length > 0 && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedCategories([]); loadAll(dateRange, []); }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedCategories([]); }}
                       className="text-[0.65rem] font-bold text-red-500 hover:underline"
                     >
                       Reset
@@ -519,7 +533,7 @@ export default function Overview() {
       <div className="animate-fade-in">
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_minmax(320px,400px)] gap-6 mb-6">
           {/* Trend Chart */}
-          <div className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 overflow-hidden flex flex-col">
+          <div id="tour-trend" className="bg-white/80 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 overflow-hidden flex flex-col">
             <div className="px-6 py-5 border-b border-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-accent-subtle text-accent flex items-center justify-center" style={{ background: 'rgba(5,150,105,0.08)', color: '#059669' }}>
@@ -553,7 +567,7 @@ export default function Overview() {
           </div>
 
           {/* Budget Monitor Column — Auto Layout applied */}
-          <div className="lg:col-span-1 flex flex-col">
+          <div className="lg:col-span-1 flex flex-col" id="tour-budgets">
             <PaceIndicator
               totalBudget={totalBudget}
               totalActual={totalActual}
@@ -572,7 +586,7 @@ export default function Overview() {
         </div>
 
         {/* ── 2. Section: Metric Cards ── */}
-        <div className="mb-6">
+        <div className="mb-6" id="tour-metrics">
           <MetricCards
             stats={{
               ...(stableStats || { total_income: 0, net_savings: 0 }),
@@ -585,181 +599,188 @@ export default function Overview() {
         </div>
 
         {/* ── 3. Section: Account Portfolio ── */}
-        <AccountPortfolio
-          accounts={accounts}
-          totalAssets={totalAssets}
-          loading={accountLoading}
-          onUpdate={async (data) => {
-            try {
-              await upsertAccount(data)
-              toast.success(`Akun ${data.name || ''} berhasil disimpan`)
-            } catch (err) {
-              toast.error('Gagal menyimpan akun: ' + (err.message || 'Unknown error'))
-            }
-          }}
-          onDelete={(id) => {
-            setDeleteConfig({ id, type: 'account' })
-            setIsDeleteConfirmOpen(true)
-          }}
-        />
-
-        {/* ── 4. Section: Investment Portfolio ── */}
-        <InvestmentSection
-          investments={investments}
-          totalPortfolio={totalPortfolio}
-          totalCost={totalCost}
-          loading={investLoading}
-          onAdd={addInvestment}
-          onUpdate={updateInvestment}
-          onDelete={(id) => {
-            setDeleteConfig({ id, type: 'investment' })
-            setIsDeleteConfirmOpen(true)
-          }}
-        />
-
-        {/* ── 5. Section: Financial Goals ── */}
-        <GoalsSection />
-
-        {/* ── 6. Section: Transaction Analysis ── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_1fr] gap-6 mt-6 mb-2">
-          {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
-          <div className="flex flex-col gap-8 h-full">
-            <div className="bg-gradient-to-br from-white to-amber-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                  <PieChart className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">Analisis Kategori</h3>
-                  <p className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 mt-1">Detailed spending distribution</p>
-                </div>
-              </div>
-              <div className="flex-1 flex flex-col justify-center">
-                <ExpenseCategoryChart
-                  categories={stats?.categories || {}}
-                  loading={statsLoading}
-                />
-              </div>
-            </div>
-
-            <BehaviorAnalysis
-              data={behaviorStats}
-              budgetData={behaviorBudgets}
-              loading={statsLoading}
-            />
-
-            <SmartAnalysisPanel
-              income={stableStats?.total_income || 0}
-              totalExpense={stableStats?.total_expense || 0}
-              payDay={payDay}
-              categories={stableStats?.categories || {}}
-              budgets={budgets}
-              dailyTrend={trendStats?.daily_trend || {}}
-              loading={stableStatsLoading}
-              className="flex-1"
-            />
-          </div>
-
-          {/* Right: Transaction Table (Condensed) */}
-          <div className="bg-gradient-to-br from-white to-blue-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col xl:min-h-[600px] overflow-hidden">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
-                  <LayoutList className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 leading-tight">Riwayat</h3>
-                  <p className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 mt-1">History</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex-1">
-              <TransactionTable
-                transactions={transactions}
-                loading={txLoading}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
-                categories={allCategories}
-                accounts={accounts}
-              />
-            </div>
-          </div>
+        <div id="tour-assets">
+          <AccountPortfolio
+            accounts={accounts}
+            totalAssets={totalAssets}
+            loading={accountLoading}
+            onUpdate={async (data) => {
+              try {
+                await upsertAccount(data)
+                toast.success(`Akun ${data.name || ''} berhasil disimpan`)
+              } catch (err) {
+                toast.error('Gagal menyimpan akun: ' + (err.message || 'Unknown error'))
+              }
+            }}
+            onDelete={(id) => {
+              setDeleteConfig({ id, type: 'account' })
+              setIsDeleteConfirmOpen(true)
+            }}
+          />
         </div>
 
-        {/* Budget Modal */}
-        <BudgetModal
-          open={isBudgetModalOpen}
-          onOpenChange={setIsBudgetModalOpen}
-          budgets={budgets}
-          onSave={async (category, amount, behaviorGroup) => {
-            try {
-              await updateBudget({ category, amount, behavior_group: behaviorGroup })
+        {/* ── 4. Section: Investment Portfolio ── */}
+          <div id="tour-invest">
+            <InvestmentSection
+              investments={investments}
+              totalPortfolio={totalPortfolio}
+              totalCost={totalCost}
+              loading={investLoading}
+              onAdd={addInvestment}
+              onUpdate={updateInvestment}
+              onDelete={(id) => {
+                setDeleteConfig({ id, type: 'investment' })
+                setIsDeleteConfirmOpen(true)
+              }}
+            />
+        </div>
 
-              // Refresh category list (opsional kalau category baru)
-              const { data: catData } = await statsApi.getCategories()
-              setAllCategories(catData || [])
+            {/* ── 5. Section: Financial Goals ── */}
+            <div id="tour-goals">
+              <GoalsSection />
+            </div>
 
-              toast.success(`Budget ${category} disimpan`)
-              return true
-            } catch (err) {
-              toast.error('Gagal menyimpan budget')
-              return false
+            {/* ── 6. Section: Transaction Analysis ── */}
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_1fr] gap-6 mt-6 mb-2">
+              {/* Left: Category Distribution Chart (Expanded) + Smart Analysis below it */}
+              <div className="flex flex-col gap-8 h-full">
+                <div className="bg-gradient-to-br from-white to-amber-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col h-fit" id="tour-categories">
+                  <div className="flex items-center gap-4 mb-8">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center">
+                      <PieChart className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 leading-tight">Analisis Kategori</h3>
+                      <p className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 mt-1">Detailed spending distribution</p>
+                    </div>
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center">
+                    <ExpenseCategoryChart
+                      categories={stats?.categories || {}}
+                      loading={statsLoading}
+                    />
+                  </div>
+                </div>
+
+                <BehaviorAnalysis
+                  data={behaviorStats}
+                  budgetData={behaviorBudgets}
+                  loading={statsLoading}
+                />
+
+                <div id="tour-insight" className="flex flex-col h-full">
+                  <SmartAnalysisPanel
+                    income={stableStats?.total_income || 0}
+                    totalExpense={stableStats?.total_expense || 0}
+                    payDay={payDay}
+                    categories={stableStats?.categories || {}}
+                    budgets={budgets}
+                    dailyTrend={trendStats?.daily_trend || {}}
+                    loading={stableStatsLoading}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* Right: Transaction Table (Condensed) */}
+              <div className="bg-gradient-to-br from-white to-blue-50/40 backdrop-blur-xl border border-white rounded-[2.5rem] p-5 sm:p-8 shadow-xl shadow-slate-200/40 transition-all duration-500 flex flex-col xl:min-h-[600px] overflow-hidden" id="tour-history">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center">
+                      <LayoutList className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 leading-tight">Riwayat</h3>
+                      <p className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 mt-1">History</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <TransactionTable
+                    transactions={transactions}
+                    loading={txLoading}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                    categories={allCategories}
+                    accounts={accounts}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Budget Modal */}
+            <BudgetModal
+              open={isBudgetModalOpen}
+              onOpenChange={setIsBudgetModalOpen}
+              budgets={budgets}
+              onSave={async (category, amount, behaviorGroup) => {
+                try {
+                  await updateBudget({ category, amount, behavior_group: behaviorGroup })
+
+                  // Refresh category list (opsional kalau category baru)
+                  const { data: catData } = await statsApi.getCategories()
+                  setAllCategories(catData || [])
+
+                  toast.success(`Budget ${category} disimpan`)
+                  return true
+                } catch (err) {
+                  toast.error('Gagal menyimpan budget')
+                  return false
+                }
+              }}
+              onRemove={async (category) => {
+                try {
+                  await removeBudget(category)
+
+                  const { data: catData } = await statsApi.getCategories()
+                  setAllCategories(catData || [])
+
+                  toast.success(`Budget ${category} dihapus`)
+                  return true
+                } catch (err) {
+                  toast.error('Gagal menghapus budget')
+                  return false
+                }
+              }}
+              onRename={async (oldName, newName) => {
+                try {
+                  await renameBudget({ oldName, newName })
+
+                  const { data: catData } = await statsApi.getCategories()
+                  setAllCategories(catData || [])
+
+                  toast.success(`Kategori diubah ke ${newName}`)
+                  return true
+                } catch (err) {
+                  toast.error('Gagal mengubah kategori')
+                  return false
+                }
+              }}
+            />
+
+          <ConfirmModal
+            open={isDeleteConfirmOpen}
+            onOpenChange={setIsDeleteConfirmOpen}
+            title={
+              deleteConfig.type === 'transaction' ? "Hapus Transaksi?" :
+                deleteConfig.type === 'account' ? "Hapus Akun Aset?" :
+                  "Hapus Investasi?"
             }
-          }}
-          onRemove={async (category) => {
-            try {
-              await removeBudget(category)
-
-              const { data: catData } = await statsApi.getCategories()
-              setAllCategories(catData || [])
-
-              toast.success(`Budget ${category} dihapus`)
-              return true
-            } catch (err) {
-              toast.error('Gagal menghapus budget')
-              return false
+            description={
+              deleteConfig.type === 'transaction'
+                ? "Data transaksi ini akan dihapus permanen dari riwayat keuangan Anda. Lanjutkan?"
+                : deleteConfig.type === 'account'
+                  ? "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
+                  : "Data investasi ini akan dihapus permanen dari portofolio Anda. Lanjutkan?"
             }
-          }}
-          onRename={async (oldName, newName) => {
-            try {
-              await renameBudget({ oldName, newName })
-
-              const { data: catData } = await statsApi.getCategories()
-              setAllCategories(catData || [])
-
-              toast.success(`Kategori diubah ke ${newName}`)
-              return true
-            } catch (err) {
-              toast.error('Gagal mengubah kategori')
-              return false
+            confirmText={
+              deleteConfig.type === 'transaction' ? "Ya, Hapus Data" :
+                deleteConfig.type === 'account' ? "Ya, Hapus Akun" :
+                  "Ya, Hapus Investasi"
             }
-          }}
-        />
-
-        {/* Delete Confirmation Modal */}
-        <ConfirmModal
-          open={isDeleteConfirmOpen}
-          onOpenChange={setIsDeleteConfirmOpen}
-          title={
-            deleteConfig.type === 'transaction' ? "Hapus Transaksi?" :
-              deleteConfig.type === 'account' ? "Hapus Akun Aset?" :
-                "Hapus Investasi?"
-          }
-          description={
-            deleteConfig.type === 'transaction'
-              ? "Data transaksi ini akan dihapus permanen dari riwayat keuangan Anda. Lanjutkan?"
-              : deleteConfig.type === 'account'
-                ? "Seluruh saldo dan riwayat yang terhubung dengan akun ini akan terhapus. Lanjutkan?"
-                : "Data investasi ini akan dihapus permanen dari portofolio Anda. Lanjutkan?"
-          }
-          confirmText={
-            deleteConfig.type === 'transaction' ? "Ya, Hapus Data" :
-              deleteConfig.type === 'account' ? "Ya, Hapus Akun" :
-                "Ya, Hapus Investasi"
-          }
-          onConfirm={confirmDelete}
-        />
+            onConfirm={confirmDelete}
+          />
+        </div>
       </div>
-    </div>
-  )
+    )
 }

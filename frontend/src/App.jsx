@@ -42,13 +42,17 @@ function PublicRoute({ children }) {
 }
 
 import { Toaster } from 'sonner'
+import { TourProvider } from '@/context/TourContext'
+import ProductTour from '@/components/dashboard/ProductTour'
 
 export default function App() {
   return (
     <AuthProvider>
       <Toaster richColors position="top-right" />
       <BrowserRouter>
-        <Routes>
+        <TourProvider>
+          <ProductTour />
+          <Routes>
           <Route path="/login" element={
             <PublicRoute><Login /></PublicRoute>
           } />
@@ -71,6 +75,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </TourProvider>
       </BrowserRouter>
     </AuthProvider>
   )

@@ -25,6 +25,9 @@ export default function GoalsSection() {
       const { data } = await goalApi.getAll()
       setGoals(data)
     } catch (err) {
+      if (err.name === 'AbortError' || err.message?.includes('Lock was stolen')) {
+        return;
+      }
       console.error('Failed to fetch goals:', err)
       toast.error('Gagal mengambil data goals')
     } finally {
@@ -33,7 +36,10 @@ export default function GoalsSection() {
   }
 
   useEffect(() => {
-    fetchGoals()
+    const timer = setTimeout(() => {
+      fetchGoals()
+    }, 300)
+    return () => clearTimeout(timer)
   }, [])
 
   const handleAddGoal = () => {

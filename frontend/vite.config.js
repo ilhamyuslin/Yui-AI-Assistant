@@ -9,6 +9,9 @@ export default defineConfig({
       "@": fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  optimizeDeps: {
+    include: ['framer-motion', '@radix-ui/react-portal', 'lucide-react', 'clsx', 'tailwind-merge'],
+  },
   server: {
     host: true,
     proxy: {
