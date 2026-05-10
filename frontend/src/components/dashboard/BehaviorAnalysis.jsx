@@ -38,7 +38,7 @@ export default function BehaviorAnalysis({ data, loading }) {
   }
 
   return (
-    <div className="w-full bg-slate-950 rounded-[2.5rem] p-5 sm:p-8 relative overflow-hidden border border-white/5 shadow-2xl flex flex-col">
+    <div className="w-full bg-slate-950 rounded-[2.5rem] p-5 sm:p-8 relative border border-white/5 shadow-2xl flex flex-col shrink-0">
       {/* Subtle Background Glow */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/5 blur-[80px] -mr-24 -mt-24" />
 

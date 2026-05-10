@@ -13,6 +13,7 @@ const configRoutes = require('./routes/configRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -80,11 +81,33 @@ async function requireAuth(req, res, next) {
   res.status(401).json({ error: 'Unauthorized. Silakan login terlebih dahulu.' });
 }
 
+async function requireAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+  
+  try {
+    const { supabase } = require('../storage/supabaseClient');
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', req.user.id)
+      .single();
+      
+    if (profile && profile.role === 'admin') {
+      return next();
+    }
+  } catch (e) {
+    console.error('[AdminAuth] Error checking admin status:', e);
+  }
+  
+  res.status(403).json({ error: 'Forbidden. Admin access required.' });
+}
+
 // ─── API Routes ───────────────────────────────────────────────
 app.use('/api/config', requireAuth, configRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
 app.use('/api/accounts', requireAuth, accountRoutes);
 app.use('/api/chat', requireAuth, chatRoutes);
+app.use('/api/admin', requireAuth, requireAdmin, adminRoutes);
 
 function startServer() {
   const localIp = getLocalIp();

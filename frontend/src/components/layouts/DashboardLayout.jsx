@@ -26,6 +26,15 @@ const NAV_ITEMS = [
           </svg>
         ),
       },
+      {
+        to: '/chat',
+        label: 'Yui AI',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -53,14 +62,15 @@ const NAV_ITEMS = [
     ],
   },
   {
-    section: 'AI Chat',
+    section: 'Administrator',
+    adminOnly: true,
     items: [
       {
-        to: '/chat',
-        label: 'Yui AI',
+        to: '/admin/users',
+        label: 'User Management',
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
         ),
       },
@@ -69,9 +79,14 @@ const NAV_ITEMS = [
 ]
 
 export default function DashboardLayout() {
-  const { logout } = useAuth()
+  const { profile, logout } = useAuth()
   const { startTour } = useTour()
   const navigate = useNavigate()
+  
+  const filteredNavItems = NAV_ITEMS.filter(section => {
+    if (section.adminOnly && profile?.role !== 'admin') return false
+    return true
+  })
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
@@ -214,7 +229,7 @@ export default function DashboardLayout() {
 
         {/* Navigation */}
         <nav className="px-3 pt-4 flex-1 flex flex-col gap-1 overflow-y-auto no-scrollbar">
-          {NAV_ITEMS.map((section) => (
+          {filteredNavItems.map((section) => (
             <div key={section.section} className="mb-4">
               <p className={cn(
                 'text-[0.6rem] font-black uppercase tracking-[0.25em] text-slate-400 px-4 py-2 mb-1 transition-all duration-300 overflow-hidden whitespace-nowrap',
@@ -388,8 +403,9 @@ export default function DashboardLayout() {
         )}>
           <div className="flex items-center justify-around">
             {(() => {
-              const allItems = NAV_ITEMS.flatMap(section => section.items)
-              const mobileItems = [allItems[0], allItems[3], allItems[1]]
+              const allItems = filteredNavItems.flatMap(section => section.items)
+              // Ensure we show up to 3 items for mobile, or whatever is available
+              const mobileItems = allItems.slice(0, 3)
 
               return mobileItems.map((item) => (
                 <NavLink

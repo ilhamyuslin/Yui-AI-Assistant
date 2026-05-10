@@ -7,6 +7,7 @@ import Overview from '@/pages/Overview'
 import Config from '@/pages/Config'
 import Chat from '@/pages/Chat'
 import Profile from '@/pages/Profile'
+import AdminUsers from '@/pages/AdminUsers'
 
 import Onboarding from '@/pages/Onboarding'
 
@@ -26,6 +27,15 @@ function PrivateRoute({ children }) {
   if (profile?.is_onboarded && location.pathname === '/onboarding') {
     return <Navigate to="/" replace />
   }
+
+  return children
+}
+
+function AdminRoute({ children }) {
+  const { isAuthenticated, profile } = useAuth()
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (profile?.role !== 'admin') return <Navigate to="/" replace />
 
   return children
 }
@@ -72,6 +82,7 @@ export default function App() {
             <Route path="config" element={<Config />} />
             <Route path="chat" element={<Chat />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

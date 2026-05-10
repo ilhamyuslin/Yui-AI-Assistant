@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 const TourContext = createContext();
 
@@ -89,6 +91,34 @@ export function TourProvider({ children }) {
   const [currentStep, setCurrentStep] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated, profile, refreshProfile } = useAuth();
+
+  // Handle Automatic Tour Start for New Users
+  useEffect(() => {
+    // Only trigger if:
+    // 1. User is authenticated
+    // 2. Profile is loaded
+    // 3. User has finished initial onboarding setup
+    // 4. User has NOT seen the tour yet
+    // 5. Tour is not already active
+    // 6. User is on the dashboard (index route)
+    if (
+      isAuthenticated && 
+      profile && 
+      profile.is_onboarded && 
+      !profile.has_completed_tour && 
+      !isActive &&
+      location.pathname === '/'
+    ) {
+      // Small delay to ensure the dashboard components (metrics, cards, etc.) are rendered
+      // so the tour spotlight targets the correct elements
+      const timer = setTimeout(() => {
+        startTour();
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, profile, isActive, location.pathname]);
 
   const startTour = useCallback(() => {
     setCurrentStep(0);
@@ -98,10 +128,27 @@ export function TourProvider({ children }) {
     }
   }, [navigate, location.pathname]);
 
-  const endTour = useCallback(() => {
+  const endTour = useCallback(async () => {
     setIsActive(false);
     setCurrentStep(0);
-  }, []);
+
+    // Save progress to database if user hasn't completed it yet
+    if (profile && !profile.has_completed_tour) {
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ has_completed_tour: true })
+          .eq('id', profile.id);
+        
+        if (!error) {
+          // Refresh profile in AuthContext to sync the flag
+          await refreshProfile();
+        }
+      } catch (err) {
+        console.error('[TourContext] Error updating tour status:', err);
+      }
+    }
+  }, [profile, refreshProfile]);
 
   const nextStep = useCallback(() => {
     const nextIdx = currentStep + 1;
